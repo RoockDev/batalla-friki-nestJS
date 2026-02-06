@@ -1,0 +1,75 @@
+@baseUrl = http://localhost:3000
+
+### Listar personajes
+GET {{baseUrl}}/characters
+Accept: application/json
+
+### Ruta no existente (prueba de errores con el contrato API)
+GET {{baseUrl}}/characters-not-found
+Accept: application/json
+
+### Atacar personaje (caso correcto)
+POST {{baseUrl}}/characters/attack
+Content-Type: application/json
+Accept: application/json
+
+{
+  "attackerId": 1,
+  "targetId": 2
+}
+
+### Atacar personaje (error: mismo atacante y objetivo)
+POST {{baseUrl}}/characters/attack
+Content-Type: application/json
+Accept: application/json
+
+{
+  "attackerId": 1,
+  "targetId": 1
+}
+
+### Atacar personaje (error: atacante no existe)
+POST {{baseUrl}}/characters/attack
+Content-Type: application/json
+Accept: application/json
+
+{
+  "attackerId": 999,
+  "targetId": 2
+}
+
+### Resetear HP de todos los personajes
+POST {{baseUrl}}/characters/reset
+Accept: application/json
+
+### Registro de usuario
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "user1@batalla.com",
+  "password": "123456"
+}
+
+### Login de usuario
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "user1@batalla.com",
+  "password": "123456"
+}
+
+
+### Atacar personaje (error de validación DTO)
+POST {{baseUrl}}/characters/attack
+Content-Type: application/json
+Accept: application/json
+
+{
+  "attackerId": 1,
+  "targetId": 2,
+  "extraField": true
+}

@@ -9,9 +9,9 @@ generator client2 {
   output       = "../generated/prisma2"
   moduleFormat = "cjs"
 }
+
 datasource db {
   provider = "postgresql"
-  
 }
 
 model User {
@@ -22,7 +22,7 @@ model User {
   xp        Int        @default(0)
   wins      Int        @default(0)
   losses    Int        @default(0)
-  roles     UserRole[] 
+  roles     UserRole[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 }
