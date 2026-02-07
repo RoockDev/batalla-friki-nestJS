@@ -10,18 +10,39 @@ import { ApiResponse } from '../types/api-response.type';
 
 @Injectable()
 export class TransformInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>>
+  implements NestInterceptor<T, ApiResponse<unknown>>
 {
   intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Observable<ApiResponse<T>> {
+  ): Observable<ApiResponse<unknown>> {
     return next.handle().pipe(
-      map((data) => ({
-        success: true,
-        message: 'Operación realizada con éxito',
-        data,
-      })),
+      map((data: unknown) => {
+        let message = 'Operación realizada con éxito';
+        let responseData: unknown = data;
+
+        if (
+          data &&
+          typeof data === 'object' &&
+          !Array.isArray(data) &&
+          'message' in data &&
+          typeof (data as { message?: unknown }).message === 'string'
+        ) {
+          const { message: customMessage, ...rest } = data as {
+            message: string;
+            [key: string]: unknown;
+          };
+
+          message = customMessage;
+          responseData = Object.keys(rest).length > 0 ? rest : null;
+        }
+
+        return {
+          success: true,
+          message,
+          data: responseData,
+        };
+      }),
     );
   }
 }

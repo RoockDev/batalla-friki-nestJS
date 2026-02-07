@@ -3,6 +3,7 @@ require('dotenv/config');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('../../generated/prisma2');
 const { seedRoles } = require('./roles.seed.cjs');
+const { seedAdminUser } = require('./admin-user.seed.cjs');
 const { seedCharacters } = require('./characters.seed.cjs');
 
 const prisma = new PrismaClient({
@@ -13,6 +14,7 @@ const prisma = new PrismaClient({
 
 async function main() {
   await seedRoles(prisma);
+  await seedAdminUser(prisma);
   await seedCharacters(prisma);
 }
 

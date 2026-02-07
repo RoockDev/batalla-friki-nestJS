@@ -1,7 +1,6 @@
 @baseUrl = http://localhost:3000
-@authToken = REEMPLAZAR_TRAS_LOGIN
 
-### Listar personajes
+### Listar personajes (sin token - debe dar 401)
 GET {{baseUrl}}/characters
 Accept: application/json
 
@@ -65,21 +64,16 @@ Accept: application/json
   "password": "123456"
 }
 
-### Esto guarda el token global
-> {%
-  client.global.set("authToken", response.body.data.access_token);
-%} 
-
 ### Listar personajes (con token - preparado para JwtAuthGuard)
 GET {{baseUrl}}/characters
 Accept: application/json
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{login.response.body.data.access_token}}
 
 ### Atacar personaje (con token - preparado para JwtAuthGuard)
 POST {{baseUrl}}/characters/attack
 Content-Type: application/json
 Accept: application/json
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{login.response.body.data.access_token}}
 
 {
   "attackerId": 1,
@@ -96,3 +90,25 @@ Accept: application/json
   "targetId": 2,
   "extraField": true
 }
+
+### Resetear HP (USER -> debe dar 403)
+POST {{baseUrl}}/characters/reset
+Accept: application/json
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+
+### Login admin (necesita usuario admin en seeds)
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "admin@batalla.com",
+  "password": "123456"
+}
+
+### Resetear HP (ADMIN -> debe funcionar)
+POST {{baseUrl}}/characters/reset
+Accept: application/json
+Authorization: Bearer {{loginAdmin.response.body.data.access_token}}
