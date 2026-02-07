@@ -1,4 +1,5 @@
 @baseUrl = http://localhost:3000
+@authToken = REEMPLAZAR_TRAS_LOGIN
 
 ### Listar personajes
 GET {{baseUrl}}/characters
@@ -43,6 +44,7 @@ POST {{baseUrl}}/characters/reset
 Accept: application/json
 
 ### Registro de usuario
+# @name register
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
 Accept: application/json
@@ -53,6 +55,7 @@ Accept: application/json
 }
 
 ### Login de usuario
+# @name login
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 Accept: application/json
@@ -62,6 +65,26 @@ Accept: application/json
   "password": "123456"
 }
 
+### Esto guarda el token global
+> {%
+  client.global.set("authToken", response.body.data.access_token);
+%} 
+
+### Listar personajes (con token - preparado para JwtAuthGuard)
+GET {{baseUrl}}/characters
+Accept: application/json
+Authorization: Bearer {{authToken}}
+
+### Atacar personaje (con token - preparado para JwtAuthGuard)
+POST {{baseUrl}}/characters/attack
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "attackerId": 1,
+  "targetId": 2
+}
 
 ### Atacar personaje (error de validación DTO)
 POST {{baseUrl}}/characters/attack
