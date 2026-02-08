@@ -112,3 +112,33 @@ Accept: application/json
 POST {{baseUrl}}/characters/reset
 Accept: application/json
 Authorization: Bearer {{loginAdmin.response.body.data.access_token}}
+
+### Iniciar batalla PVE (USER o ADMIN)
+# @name startPve
+POST {{baseUrl}}/battles/start/pve
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+{
+  "myCharacterId": 7,
+  "machineCharacterId": 8
+}
+
+### Iniciar batalla PVP (USER o ADMIN)
+# @name startPvp
+POST {{baseUrl}}/battles/start/pvp
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer {{login.response.body.data.access_token}}
+
+{
+  "opponentUserId": 2,
+  "myCharacterId": 7,
+  "opponentCharacterId": 11
+}
+
+### Obtener batalla PVE por id
+GET {{baseUrl}}/battles/{{startPve.response.body.data.battleId}}
+Accept: application/json
+Authorization: Bearer {{login.response.body.data.access_token}}

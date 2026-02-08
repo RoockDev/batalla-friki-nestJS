@@ -25,6 +25,11 @@ model User {
   roles     UserRole[] 
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+
+  initiatedBattles Battle[] @relation("InitiatedBattles")
+  opponentBattles  Battle[] @relation("OpponentBattles")
+  wonBattles       Battle[] @relation("WonBattles")
+
 }
 
 model Role {
@@ -53,4 +58,43 @@ model Character {
   levelRequired Int      @default(1)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  initiatedInBattles Battle[] @relation("InitiatorCharacterBattles")
+  opponentInBattles  Battle[] @relation("OpponentCharacterBattles")
+
+}
+
+enum BattleMode{
+  PVP
+  PVE
+}
+
+enum BattleStatus{
+  IN_PROGRESS
+  FINISHED
+}
+
+model Battle {
+  id                   Int          @id @default(autoincrement())
+  mode                 BattleMode
+  status               BattleStatus @default(IN_PROGRESS)
+
+  initiatorUserId      Int
+  opponentUserId       Int?
+  winnerUserId         Int?
+  winnerIsMachine      Boolean      @default(false)
+
+  initiatorCharacterId Int
+  opponentCharacterId  Int
+
+  initiatorUser        User         @relation("InitiatedBattles", fields: [initiatorUserId], references: [id])
+  opponentUser         User?        @relation("OpponentBattles", fields: [opponentUserId], references: [id])
+  winnerUser           User?        @relation("WonBattles", fields: [winnerUserId], references: [id])
+
+  initiatorCharacter   Character    @relation("InitiatorCharacterBattles", fields: [initiatorCharacterId], references: [id])
+  opponentCharacter    Character    @relation("OpponentCharacterBattles", fields: [opponentCharacterId], references: [id])
+
+  endedAt              DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 }
