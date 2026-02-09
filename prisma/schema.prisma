@@ -74,6 +74,11 @@ enum BattleStatus{
   FINISHED
 }
 
+enum BattleTurn {
+  INITIATOR
+  OPPONENT
+}
+
 model Battle {
   id                   Int          @id @default(autoincrement())
   mode                 BattleMode
@@ -87,6 +92,12 @@ model Battle {
   initiatorCharacterId Int
   opponentCharacterId  Int
 
+  initiatorCurrentHp   Int @default(1)
+  opponentCurrentHp    Int @default(1)
+
+  turnNumber           Int          @default(1)
+  nextTurn             BattleTurn   @default(INITIATOR)
+
   initiatorUser        User         @relation("InitiatedBattles", fields: [initiatorUserId], references: [id])
   opponentUser         User?        @relation("OpponentBattles", fields: [opponentUserId], references: [id])
   winnerUser           User?        @relation("WonBattles", fields: [winnerUserId], references: [id])
@@ -98,3 +109,4 @@ model Battle {
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
 }
+

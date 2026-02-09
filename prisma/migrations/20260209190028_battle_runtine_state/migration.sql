@@ -1,0 +1,8 @@
+-- CreateEnum
+CREATE TYPE "BattleTurn" AS ENUM ('INITIATOR', 'OPPONENT');
+
+-- AlterTable
+ALTER TABLE "Battle" ADD COLUMN     "initiatorCurrentHp" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "nextTurn" "BattleTurn" NOT NULL DEFAULT 'INITIATOR',
+ADD COLUMN     "opponentCurrentHp" INTEGER NOT NULL DEFAULT 1,
+ADD COLUMN     "turnNumber" INTEGER NOT NULL DEFAULT 1;

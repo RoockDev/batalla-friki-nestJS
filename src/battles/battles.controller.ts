@@ -22,21 +22,27 @@ import { Roles } from '../auth/roles/roles.decorator';
 export class BattlesController {
   constructor(private readonly battlesService: BattlesService) {}
 
- @Post('start/pve')
-startPve(@Req() req: Request, @Body() dto: StartPveBattleDto) {
-  const user = req.user as { id: number };
-  return this.battlesService.startPve(user.id, dto);
-}
+  //partida contra maquina
+  @Post('start/pve')
+  startPve(@Req() req: Request, @Body() dto: StartPveBattleDto) {
+    const user = req.user as { id: number };
+    return this.battlesService.startPve(user.id, dto);
+  }
 
-
+  //partida contra otro user
   @Post('start/pvp')
-  startPvp(@Req() req: Request,@Body() dto: StartPvpBattleDto) {
-    const user = req.user as {id:number}
-    return this.battlesService.startPvp(user.id,dto);
+  startPvp(@Req() req: Request, @Body() dto: StartPvpBattleDto) {
+    const user = req.user as { id: number };
+    return this.battlesService.startPvp(user.id, dto);
   }
 
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.battlesService.findOne(id);
+  }
+
+  @Post(':id/turn')
+  playNextTurn(@Param('id', ParseIntPipe) id: number) {
+    return this.battlesService.playNextTurnPvp(id)
   }
 }

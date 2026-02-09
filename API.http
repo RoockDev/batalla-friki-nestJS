@@ -142,3 +142,46 @@ Authorization: Bearer {{login.response.body.data.access_token}}
 GET {{baseUrl}}/battles/{{startPve.response.body.data.battleId}}
 Accept: application/json
 Authorization: Bearer {{login.response.body.data.access_token}}
+
+
+### 1) Login USER 1
+# @name loginUser1
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "user1@batalla.com",
+  "password": "123456"
+}
+
+###
+
+@authToken = {{loginUser1.response.body.data.access_token}}
+
+### 2) Iniciar batalla PVP (queda IN_PROGRESS)
+# @name startPvp
+POST http://localhost:3000/battles/start/pvp
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "opponentUserId": 2,
+  "myCharacterId": 7,
+  "opponentCharacterId": 11
+}
+
+###
+
+@battleId = {{startPvp.response.body.data.battleId}}
+
+### 3) Ejecutar 1 turno
+POST http://localhost:3000/battles/{{battleId}}/turn
+Authorization: Bearer {{authToken}}
+
+### 4) Ejecutar otro turno
+POST http://localhost:3000/battles/{{battleId}}/turn
+Authorization: Bearer {{authToken}}
+
+### 5) Ver estado de batalla
+GET http://localhost:3000/battles/{{battleId}}
+Authorization: Bearer {{authToken}}
