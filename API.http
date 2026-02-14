@@ -170,7 +170,7 @@ Content-Type: application/json
   "opponentCharacterId": 11
 }
 
-###
+### PRUEBA BATALLA JUGADOR VS JUGADOR
 
 @battleId = {{startPvp.response.body.data.battleId}}
 
@@ -184,4 +184,151 @@ Authorization: Bearer {{authToken}}
 
 ### 5) Ver estado de batalla
 GET http://localhost:3000/battles/{{battleId}}
+Authorization: Bearer {{authToken}}
+
+### PRUEBA BATALLA VS MAQUINA
+
+### LOGIN USER 1
+# @name loginUser1
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "user1@batalla.com",
+  "password": "123456"
+}
+
+###
+
+@authToken = {{loginUser1.response.body.data.access_token}}
+
+### INICIAR PVE (IN_PROGRESS)
+# @name startPve
+POST http://localhost:3000/battles/start/pve
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "myCharacterId": 7,
+  "machineCharacterId": 8
+}
+
+###
+
+@pveBattleId = {{startPve.response.body.data.battleId}}
+
+### TURNO PVE (jugador + maquina)
+POST http://localhost:3000/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{authToken}}
+
+### TURNO PVE 2
+POST http://localhost:3000/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{authToken}}
+
+### VER ESTADO BATTLE
+GET http://localhost:3000/battles/{{pveBattleId}}
+Authorization: Bearer {{authToken}}
+
+
+@baseUrl = http://localhost:3000
+
+### =========================
+### LOGIN USER 1
+### =========================
+# @name loginUser1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "user1@batalla.com",
+  "password": "123456"
+}
+
+###
+
+@authToken = {{loginUser1.response.body.data.access_token}}
+
+### =========================
+### PVP - START
+### =========================
+# Ajusta IDs si en tu BD son otros
+# @name startPvp
+POST {{baseUrl}}/battles/start/pvp
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "opponentUserId": 2,
+  "myCharacterId": 7,
+  "opponentCharacterId": 11
+}
+
+###
+
+@pvpBattleId = {{startPvp.response.body.data.battleId}}
+
+### PVP - TURN 1
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{authToken}}
+
+### PVP - TURN 2
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{authToken}}
+
+### PVP - TURN 3
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{authToken}}
+
+### PVP - TURN 4
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{authToken}}
+
+### PVP - TURN 5
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{authToken}}
+
+### PVP - ESTADO FINAL
+GET {{baseUrl}}/battles/{{pvpBattleId}}
+Authorization: Bearer {{authToken}}
+
+### =========================
+### PVE - START
+### =========================
+# Ajusta IDs si en tu BD son otros
+# @name startPve
+POST {{baseUrl}}/battles/start/pve
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "myCharacterId": 7,
+  "machineCharacterId": 8
+}
+
+###
+
+@pveBattleId = {{startPve.response.body.data.battleId}}
+
+### PVE - TURN 1
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{authToken}}
+
+### PVE - TURN 2
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{authToken}}
+
+### PVE - TURN 3
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{authToken}}
+
+### PVE - TURN 4
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{authToken}}
+
+### PVE - TURN 5
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{authToken}}
+
+### PVE - ESTADO FINAL
+GET {{baseUrl}}/battles/{{pveBattleId}}
 Authorization: Bearer {{authToken}}

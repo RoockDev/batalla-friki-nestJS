@@ -45,4 +45,9 @@ export class BattlesController {
   playNextTurn(@Param('id', ParseIntPipe) id: number) {
     return this.battlesService.playNextTurnPvp(id)
   }
+
+  @Post(':id/turn/pve')
+  playNextTurnPve(@Param('id', ParseIntPipe)id:number){
+    return this.battlesService.playNextTurnPve(id);
+  }
 }

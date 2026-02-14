@@ -7,7 +7,6 @@ import { StartPveBattleDto } from './dto/start-pve-battle.dto';
 import { StartPvpBattleDto } from './dto/start-pvp-battle.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
-//Esto lo voy a sacar fuera, aún así me chirria mucho todo este bloque
 const battlePublicSelect = {
   id: true,
   mode: true,
@@ -74,115 +73,147 @@ const battlePublicSelect = {
   },
 } as const;
 
+/**
+ * perdona por todo el lio que he montado en este servico , creo que me he liado intentando controlar cosas de más para la batalla que estuviese todo bien y ya no se si podria haberse
+ * simplificado más , pero he intentado hacerlo guay, el tema de las transacciones que te comenté en clase me he ayudado de la documentción y de la ia para poder conntroarlo bien
+ * le he estado dando varias vueltas y creo que puede estar bien aunque aloemjor me he liado de más , no lo sé
+ */
+
+/**
+ * esto de pick lo utilizo para el cliente de la transaccion de prisma que coge el tipo de user y battle que es lo unico que necesito
+ * para las transacciones durante la partida, si no recibira prisma service completo , basicamente con esto se define tipos
+ */
+type BattleTxClient = Pick<PrismaService, 'user' | 'battle'>;
+
 @Injectable()
 export class BattlesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  //partida contra la maquina
+  //pvp es jugador contra jugador y pve jugador contra maquina
+  
+  /**
+   * esto inicia la btalla contra la maquina con estado inpogress con el
+   * hp inicial de los dos personajes
+   */
   async startPve(initiatorUserId: number, dto: StartPveBattleDto) {
     const { initiatorUser, myCharacter, machineCharacter } =
       await this.getAndValidatePveContext(initiatorUserId, dto);
 
-    const simulation = this.simulateBattle(myCharacter, machineCharacter);
-
-    const battle = await this.createFinishedPveBattle({
+    const battle = await this.createInProgressPveBattle({
       initiatorUserId: initiatorUser.id,
       initiatorCharacterId: myCharacter.id,
       machineCharacterId: machineCharacter.id,
-      initiatorWon: simulation.initiatorWon,
-    });
-
-    await this.applyPveRewards({
-      initiatorUserId: initiatorUser.id,
-      currentXp: initiatorUser.xp,
-      initiatorWon: simulation.initiatorWon,
+      initiatorStartHp: myCharacter.hp,
+      machineStartHp: machineCharacter.hp,
     });
 
     return {
-      message: 'Batalla PVE finalizada',
+      message: 'Batalla PVE iniciada',
       battleId: battle.id,
-      result: {
-        initiatorWon: simulation.initiatorWon,
-        initiatorHp: simulation.initiatorHp,
-        opponentHp: simulation.opponentHp,
-      },
+      status: battle.status,
     };
   }
 
-  //partida contra otro usuario
+  
+  /**
+   * este hace lo mismo que el de arriba pero jugador vs jugador
+   */
   async startPvp(initiatorUserId: number, dto: StartPvpBattleDto) {
     const { initiatorUser, opponentUser, myCharacter, opponentCharacter } =
       await this.getAndValidatePvpContext(initiatorUserId, dto);
 
-
-    //const simulation = this.simulateBattle(myCharacter, opponentCharacter);
-
-    /*const battle = await this.createFinishedPvpBattle({
+    const battle = await this.createInProgressPvpBattle({
       initiatorUserId: initiatorUser.id,
       opponentUserId: opponentUser.id,
       initiatorCharacterId: myCharacter.id,
       opponentCharacterId: opponentCharacter.id,
-      initiatorWon: simulation.initiatorWon,
-    });*/
+      initiatorStartHp: myCharacter.hp,
+      opponentStartHp: opponentCharacter.hp,
+    });
 
-    
-  const battle = await this.createInProgressPvpBattle({
-    initiatorUserId: initiatorUser.id,
-    opponentUserId: opponentUser.id,
-    initiatorCharacterId: myCharacter.id,
-    opponentCharacterId: opponentCharacter.id,
-    initiatorStartHp: myCharacter.hp,
-    opponentStartHp: opponentCharacter.hp,
-  });
-
-  return {
-    message: 'Batalla PVP iniciada',
-    battleId: battle.id,
-    status: battle.status,
-  };
+    return {
+      message: 'Batalla PVP iniciada',
+      battleId: battle.id,
+      status: battle.status,
+    };
   }
 
-
-private createInProgressPvpBattle(params: {
-  initiatorUserId: number;
-  opponentUserId: number;
-  initiatorCharacterId: number;
-  opponentCharacterId: number;
-  initiatorStartHp: number;
-  opponentStartHp: number;
-}) {
-  const {
-    initiatorUserId,
-    opponentUserId,
-    initiatorCharacterId,
-    opponentCharacterId,
-    initiatorStartHp,
-    opponentStartHp,
-  } = params;
-
-  return this.prisma.battle.create({
-    data: {
-      mode: 'PVP',
-      status: 'IN_PROGRESS',
+  
+  /**
+   * esto persiste la batalla jugador vs jugador con el estado inicial y el turno de quien la inicia
+   */
+  private createInProgressPvpBattle(params: {
+    initiatorUserId: number;
+    opponentUserId: number;
+    initiatorCharacterId: number;
+    opponentCharacterId: number;
+    initiatorStartHp: number;
+    opponentStartHp: number;
+  }) {
+    const {
       initiatorUserId,
       opponentUserId,
-      winnerUserId: null,
-      winnerIsMachine: false,
       initiatorCharacterId,
       opponentCharacterId,
-      initiatorCurrentHp: initiatorStartHp,
-      opponentCurrentHp: opponentStartHp,
-      turnNumber: 1,
-      nextTurn: 'INITIATOR',
-      endedAt: null,
-    },
-  });
-}
+      initiatorStartHp,
+      opponentStartHp,
+    } = params;
 
+    return this.prisma.battle.create({
+      data: {
+        mode: 'PVP',
+        status: 'IN_PROGRESS',
+        initiatorUserId,
+        opponentUserId,
+        winnerUserId: null,
+        winnerIsMachine: false,
+        initiatorCharacterId,
+        opponentCharacterId,
+        initiatorCurrentHp: initiatorStartHp,
+        opponentCurrentHp: opponentStartHp,
+        turnNumber: 1,
+        nextTurn: 'INITIATOR',
+        endedAt: null,
+      },
+    });
+  }
 
+  // lo mismo que el de arriba pero contra la maquina
+  private createInProgressPveBattle(params: {
+    initiatorUserId: number;
+    initiatorCharacterId: number;
+    machineCharacterId: number;
+    initiatorStartHp: number;
+    machineStartHp: number;
+  }) {
+    const {
+      initiatorUserId,
+      initiatorCharacterId,
+      machineCharacterId,
+      initiatorStartHp,
+      machineStartHp,
+    } = params;
+
+    return this.prisma.battle.create({
+      data: {
+        mode: 'PVE',
+        status: 'IN_PROGRESS',
+        initiatorUserId,
+        opponentUserId: null,
+        winnerUserId: null,
+        winnerIsMachine: false,
+        initiatorCharacterId,
+        opponentCharacterId: machineCharacterId,
+        initiatorCurrentHp: initiatorStartHp,
+        opponentCurrentHp: machineStartHp,
+        turnNumber: 1,
+        nextTurn: 'INITIATOR',
+        endedAt: null,
+      },
+    });
+  }
 
   
-
   async findOne(id: number) {
     const battle = await this.prisma.battle.findUnique({
       where: { id },
@@ -195,39 +226,7 @@ private createInProgressPvpBattle(params: {
     return battle;
   }
 
-  //simulacion de batalla
-  private simulateBattle(
-    initiator: { hp: number; attack: number },
-    opponent: { hp: number; attack: number },
-  ) {
-    let initiatorHp = initiator.hp;
-    let opponentHp = opponent.hp;
-    let attackerTurn: 'initiator' | 'opponent' = 'initiator';
-
-    while (initiatorHp > 0 && opponentHp > 0) {
-      if (attackerTurn === 'initiator') {
-        opponentHp = Math.max(0, opponentHp - initiator.attack);
-        attackerTurn = 'opponent';
-      } else {
-        initiatorHp = Math.max(0, initiatorHp - opponent.attack);
-        attackerTurn = 'initiator';
-      }
-    }
-
-    const initiatorWon = initiatorHp > 0;
-
-    return {
-      initiatorWon,
-      initiatorHp,
-      opponentHp,
-    };
-  }
-  /**Aqui estoy haciendo distintos metodos para separar resposabilidades ya que de primeras me ha salido
-   * unos monstruos de metodos de partida de batalla y me parecia ilegible asique estoy sacando todo en metodos mas pequeños
-   * para asi utilizar el metodo bueno como de orquestador y que asi sea mas legible tambien y si falla algo pues se sabe donde hay que ir concretamente
-   */
-
-  // para validar y controlar errores de batallas pve (contra la maquina)
+  // aqui he hecho este metodo para las validaciones vs la maquina por no cargar otro metodo y no hacerlo tan grande que quedaba feo asique lo he modularizado con este
   private async getAndValidatePveContext(
     initiatorUserId: number,
     dto: StartPveBattleDto,
@@ -274,7 +273,7 @@ private createInProgressPvpBattle(params: {
     return { initiatorUser, myCharacter, machineCharacter };
   }
 
-  // para validar y manejar errores en batalla contra otro usuario
+  // lo mismo que el de arriba pero jugador vs jugador
   private async getAndValidatePvpContext(
     initiatorUserId: number,
     dto: StartPvpBattleDto,
@@ -344,175 +343,367 @@ private createInProgressPvpBattle(params: {
     return { initiatorUser, opponentUser, myCharacter, opponentCharacter };
   }
 
-  //para la persistencia de la partida en la batalla contra la maquina y ponerla como finalizada
-  private createFinishedPveBattle(params: {
-    initiatorUserId: number;
-    initiatorCharacterId: number;
-    machineCharacterId: number;
-    initiatorWon: boolean;
-  }) {
-    const {
-      initiatorUserId,
-      initiatorCharacterId,
-      machineCharacterId,
-      initiatorWon,
-    } = params;
-
-    return this.prisma.battle.create({
-      data: {
-        mode: 'PVE',
-        status: 'FINISHED',
-        initiatorUserId,
-        opponentUserId: null,
-        winnerUserId: initiatorWon ? initiatorUserId : null,
-        winnerIsMachine: !initiatorWon,
-        initiatorCharacterId,
-        opponentCharacterId: machineCharacterId,
-        endedAt: new Date(),
-      },
-    });
-  }
-
-  //para la persistencia de la partida en batalla PVP y ponerla como finalizada
-  private createFinishedPvpBattle(params: {
-    initiatorUserId: number;
-    opponentUserId: number;
-    initiatorCharacterId: number;
-    opponentCharacterId: number;
-    initiatorWon: boolean;
-  }) {
-    const {
-      initiatorUserId,
-      opponentUserId,
-      initiatorCharacterId,
-      opponentCharacterId,
-      initiatorWon,
-    } = params;
-
-    return this.prisma.battle.create({
-      data: {
-        mode: 'PVP',
-        status: 'FINISHED',
-        initiatorUserId,
-        opponentUserId,
-        winnerUserId: initiatorWon ? initiatorUserId : opponentUserId,
-        winnerIsMachine: false,
-        initiatorCharacterId,
-        opponentCharacterId,
-        endedAt: new Date(),
-      },
-    });
-  }
-
-  //para actuazliar los datos del usuario xp, nivel etc etc
-  private async applyPveRewards(
-    params: {
-        initiatorUserId:number;
-        currentXp: number;
-        initiatorWon: boolean;
-    }
-  ){
-    const {initiatorUserId,currentXp,initiatorWon} = params;
-
-    if (initiatorWon) {
-        const newXp = currentXp + 10;
-        const newLevel = Math.floor(newXp/100) + 1;
-
-        await this.prisma.user.update({
-            where: {id:initiatorUserId},
-            data: {
-                wins: {increment:1},
-                xp: newXp,
-                level: newLevel,
-            },
-        });
-        return;
-    }
-
-    await this.prisma.user.update({
-        where: {id:initiatorUserId},
-        data:{
-            losses: {increment: 1},
-        },
-    });
-  }
-
-  //TURNOSSSSS
+  // hace un turno jugador vs jugadro y  aplica daño, avanza turno o cierra batalla con recompensas
   async playNextTurnPvp(battleId: number) {
-  const battle = await this.prisma.battle.findUnique({
-    where: { id: battleId },
-    select: {
-      id: true,
-      status: true,
-      mode: true,
-      turnNumber: true,
-      nextTurn: true,
-      initiatorCurrentHp: true,
-      opponentCurrentHp: true,
-      initiatorUserId: true,
-      opponentUserId: true,
-      initiatorCharacter: { select: { attack: true } },
-      opponentCharacter: { select: { attack: true } },
-    },
-  });
+    const battle = await this.getPvpBattleForTurn(battleId);
 
-  if (!battle) {
-    throw new NotFoundException('Batalla no encontrada');
-  }
+    let initiatorHp = battle.initiatorCurrentHp;
+    let opponentHp = battle.opponentCurrentHp;
 
-  if (battle.status !== 'IN_PROGRESS') {
-    throw new BadRequestException('La batalla no está en progreso');
-  }
+    if (battle.nextTurn === 'INITIATOR') {
+      opponentHp = Math.max(0, opponentHp - battle.initiatorCharacter.attack);
+    } else {
+      initiatorHp = Math.max(0, initiatorHp - battle.opponentCharacter.attack);
+    }
 
-  if (!battle.opponentUserId) {
-    throw new BadRequestException('Batalla PVP inválida: falta opponentUserId');
-  }
+    const finished = initiatorHp === 0 || opponentHp === 0;
+    const nextTurn = battle.nextTurn === 'INITIATOR' ? 'OPPONENT' : 'INITIATOR';
 
-  let initiatorHp = battle.initiatorCurrentHp;
-  let opponentHp = battle.opponentCurrentHp;
-
-  if (battle.nextTurn === 'INITIATOR') {
-    opponentHp = Math.max(0, opponentHp - battle.initiatorCharacter.attack);
-  } else {
-    initiatorHp = Math.max(0, initiatorHp - battle.opponentCharacter.attack);
-  }
-
-  const finished = initiatorHp === 0 || opponentHp === 0;
-  const nextTurn = battle.nextTurn === 'INITIATOR' ? 'OPPONENT' : 'INITIATOR';
-
-  const updatedBattle = await this.prisma.battle.update({
-    where: { id: battle.id },
-    data: finished
-      ? {
-          initiatorCurrentHp: initiatorHp,
-          opponentCurrentHp: opponentHp,
-          status: 'FINISHED',
-          winnerUserId: initiatorHp > 0 ? battle.initiatorUserId : battle.opponentUserId,
-          winnerIsMachine: false,
-          endedAt: new Date(),
-        }
-      : {
+    if (!finished) {
+      const updatedBattle = await this.prisma.battle.update({
+        where: { id: battle.id },
+        data: {
           initiatorCurrentHp: initiatorHp,
           opponentCurrentHp: opponentHp,
           turnNumber: { increment: 1 },
           nextTurn,
         },
-    select: {
-      id: true,
-      status: true,
-      turnNumber: true,
-      nextTurn: true,
-      initiatorCurrentHp: true,
-      opponentCurrentHp: true,
-      winnerUserId: true,
-      endedAt: true,
+        select: {
+          id: true,
+          status: true,
+          turnNumber: true,
+          nextTurn: true,
+          initiatorCurrentHp: true,
+          opponentCurrentHp: true,
+          winnerUserId: true,
+          endedAt: true,
+        },
+      });
+
+      return {
+        message: 'Turno aplicado',
+        ...updatedBattle,
+      };
+    }
+
+    const winnerUserId =
+      initiatorHp > 0 ? battle.initiatorUserId : battle.opponentUserId;
+    const loserUserId =
+      initiatorHp > 0 ? battle.opponentUserId : battle.initiatorUserId;
+
+    const finishedBattle = await this.prisma.$transaction(async (tx) => {
+      const closedBattle = await tx.battle.update({
+        where: { id: battle.id },
+        data: {
+          initiatorCurrentHp: initiatorHp,
+          opponentCurrentHp: opponentHp,
+          status: 'FINISHED',
+          winnerUserId,
+          winnerIsMachine: false,
+          endedAt: new Date(),
+        },
+        select: {
+          id: true,
+          status: true,
+          turnNumber: true,
+          nextTurn: true,
+          initiatorCurrentHp: true,
+          opponentCurrentHp: true,
+          winnerUserId: true,
+          endedAt: true,
+        },
+      });
+
+      await this.applyPvpRewardsTx(tx, {
+        winnerUserId,
+        loserUserId,
+      });
+
+      return closedBattle;
+    });
+
+    return {
+      message: 'Turno aplicado y batalla finalizada',
+      ...finishedBattle,
+    };
+  }
+
+  private async getPvpBattleForTurn(battleId: number) {
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        status: true,
+        mode: true,
+        turnNumber: true,
+        nextTurn: true,
+        initiatorCurrentHp: true,
+        opponentCurrentHp: true,
+        initiatorUserId: true,
+        opponentUserId: true,
+        initiatorCharacter: { select: { attack: true } },
+        opponentCharacter: { select: { attack: true } },
+      },
+    });
+
+    if (!battle) {
+      throw new NotFoundException('Batalla no encontrada');
+    }
+
+    if (battle.mode !== 'PVP') {
+      throw new BadRequestException('Este método es solo para PVP');
+    }
+
+    if (battle.status !== 'IN_PROGRESS') {
+      throw new BadRequestException('La batalla no está en progreso');
+    }
+
+    if (!battle.opponentUserId) {
+      throw new BadRequestException(
+        'Batalla PVP inválida: falta opponentUserId',
+      );
+    }
+
+    return {
+      ...battle,
+      opponentUserId: battle.opponentUserId,
+    };
+  }
+
+  // hace el turno vs maquina y  ataque del jugador + contraataque de máquina o cierre de batalla
+  async playNextTurnPve(battleId: number) {
+    const battle = await this.getPveBattleForTurn(battleId);
+
+    let initiatorHp = battle.initiatorCurrentHp;
+    let machineHp = Math.max(
+      0,
+      battle.opponentCurrentHp - battle.initiatorCharacter.attack,
+    );
+
+    if (machineHp === 0) {
+      return this.finishPveBattleWithTransaction({
+        battleId: battle.id,
+        initiatorUserId: battle.initiatorUserId,
+        initiatorHp,
+        machineHp,
+        initiatorWon: true,
+      });
+    }
+
+    initiatorHp = Math.max(0, initiatorHp - battle.opponentCharacter.attack);
+
+    if (initiatorHp === 0) {
+      return this.finishPveBattleWithTransaction({
+        battleId: battle.id,
+        initiatorUserId: battle.initiatorUserId,
+        initiatorHp,
+        machineHp,
+        initiatorWon: false,
+      });
+    }
+
+    return this.updatePveBattleInProgress({
+      battleId: battle.id,
+      initiatorHp,
+      machineHp,
+    });
+  }
+
+  // esto carga y valida que la batalla sea vs maquina y esté en progreso antes de jugar un turno
+  private async getPveBattleForTurn(battleId: number) {
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        mode: true,
+        status: true,
+        initiatorCurrentHp: true,
+        opponentCurrentHp: true,
+        initiatorUserId: true,
+        initiatorCharacter: { select: { attack: true } },
+        opponentCharacter: { select: { attack: true } },
+      },
+    });
+
+    if (!battle) {
+      throw new NotFoundException('Batalla no encontrada');
+    }
+
+    if (battle.mode !== 'PVE') {
+      throw new BadRequestException('Este método es solo para PVE');
+    }
+
+    if (battle.status !== 'IN_PROGRESS') {
+      throw new BadRequestException('La batalla no está en progreso');
+    }
+
+    return battle;
+  }
+
+  // esto cierra una batalla vs maquina y aplica recompensas con una transacción
+  private async finishPveBattleWithTransaction(params: {
+    battleId: number;
+    initiatorUserId: number;
+    initiatorHp: number;
+    machineHp: number;
+    initiatorWon: boolean;
+  }) {
+    const { battleId, initiatorUserId, initiatorHp, machineHp, initiatorWon } =
+      params;
+
+    const finishedBattle = await this.prisma.$transaction(async (tx) => {
+      const closedBattle = await tx.battle.update({
+        where: { id: battleId },
+        data: {
+          initiatorCurrentHp: initiatorHp,
+          opponentCurrentHp: machineHp,
+          status: 'FINISHED',
+          winnerUserId: initiatorWon ? initiatorUserId : null,
+          winnerIsMachine: !initiatorWon,
+          endedAt: new Date(),
+        },
+        select: {
+          id: true,
+          status: true,
+          turnNumber: true,
+          initiatorCurrentHp: true,
+          opponentCurrentHp: true,
+          winnerUserId: true,
+          winnerIsMachine: true,
+          endedAt: true,
+        },
+      });
+
+      if (initiatorWon) {
+        await this.applyPveRewardsTx(tx, {
+          initiatorUserId,
+          initiatorWon: true,
+        });
+      } else {
+        await this.applyPveRewardsTx(tx, {
+          initiatorUserId,
+          initiatorWon: false,
+        });
+      }
+
+      return closedBattle;
+    });
+
+    return {
+      message: 'Turno aplicado y batalla finalizada',
+      ...finishedBattle,
+    };
+  }
+
+  // guarda el estado intermedio de una batalla vs maquina cuando no ha ganado nadie aun
+  private async updatePveBattleInProgress(params: {
+    battleId: number;
+    initiatorHp: number;
+    machineHp: number;
+  }) {
+    const { battleId, initiatorHp, machineHp } = params;
+    const updatedBattle = await this.prisma.battle.update({
+      where: { id: battleId },
+      data: {
+        initiatorCurrentHp: initiatorHp,
+        opponentCurrentHp: machineHp,
+        turnNumber: { increment: 1 },
+      },
+      select: {
+        id: true,
+        status: true,
+        turnNumber: true,
+        initiatorCurrentHp: true,
+        opponentCurrentHp: true,
+        winnerUserId: true,
+        winnerIsMachine: true,
+        endedAt: true,
+      },
+    });
+
+    return {
+      message: 'Turno aplicado',
+      ...updatedBattle,
+    };
+  }
+
+  // aplica recompensas vs jgador dentro de la misma transacción de terminar la baatlla
+  private async applyPvpRewardsTx(
+    tx: BattleTxClient,
+    params: {
+      winnerUserId: number;
+      loserUserId: number;
     },
-  });
+  ) {
+    const { winnerUserId, loserUserId } = params;
+    const winnerXp = await this.getUserXpTx(tx, winnerUserId);
+    const newXp = winnerXp + 10;
+    const newLevel = Math.floor(newXp / 100) + 1;
 
-  return {
-    message: finished ? 'Turno aplicado y batalla finalizada' : 'Turno aplicado',
-    ...updatedBattle,
-  };
-}
+    await tx.user.update({
+      where: { id: winnerUserId },
+      data: {
+        wins: { increment: 1 },
+        xp: newXp,
+        level: newLevel,
+      },
+    });
 
+    await tx.user.update({
+      where: { id: loserUserId },
+      data: {
+        losses: { increment: 1 },
+      },
+    });
+  }
+
+  // aplica recompensas vs maquina dentro de la misma transacción de terminar la baatlla
+  private async applyPveRewardsTx(
+    tx: BattleTxClient,
+    params: {
+      initiatorUserId: number;
+      initiatorWon: boolean;
+    },
+  ) {
+    const { initiatorUserId, initiatorWon } = params;
+
+    if (initiatorWon) {
+      const currentXp = await this.getUserXpTx(tx, initiatorUserId);
+      const newXp = currentXp + 10;
+      const newLevel = Math.floor(newXp / 100) + 1;
+
+      await tx.user.update({
+        where: { id: initiatorUserId },
+        data: {
+          wins: { increment: 1 },
+          xp: newXp,
+          level: newLevel,
+        },
+      });
+      return;
+    }
+
+    await tx.user.update({
+      where: { id: initiatorUserId },
+      data: {
+        losses: { increment: 1 },
+      },
+    });
+  }
+
+  // obtiene el xp actual de un usuario usando el tx de transaccion
+  private async getUserXpTx(tx: BattleTxClient, userId: number) {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { xp: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(
+        'Usuario no encontrado para aplicar recompensas',
+      );
+    }
+
+    return user.xp;
+  }
 }
