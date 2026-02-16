@@ -1,93 +1,46 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { StartPveBattleDto } from './dto/start-pve-battle.dto';
 import { StartPvpBattleDto } from './dto/start-pvp-battle.dto';
+import { JoinPvpBattleDto } from './dto/join-pvp-battle.dto';
+import { battlePublicSelect } from './selectors/battle-public.select';
 import { PrismaService } from '../prisma/prisma.service';
-
-const battlePublicSelect = {
-  id: true,
-  mode: true,
-  status: true,
-  initiatorCurrentHp: true,
-  opponentCurrentHp: true,
-  turnNumber: true,
-  nextTurn: true,
-  initiatorUserId: true,
-  opponentUserId: true,
-  winnerUserId: true,
-  winnerIsMachine: true,
-  initiatorCharacterId: true,
-  opponentCharacterId: true,
-  endedAt: true,
-  createdAt: true,
-  initiatorUser: {
-    select: {
-      id: true,
-      email: true,
-      level: true,
-      xp: true,
-      wins: true,
-      losses: true,
-    },
-  },
-  opponentUser: {
-    select: {
-      id: true,
-      email: true,
-      level: true,
-      xp: true,
-      wins: true,
-      losses: true,
-    },
-  },
-  winnerUser: {
-    select: {
-      id: true,
-      email: true,
-      level: true,
-      xp: true,
-      wins: true,
-      losses: true,
-    },
-  },
-  initiatorCharacter: {
-    select: {
-      id: true,
-      name: true,
-      hp: true,
-      attack: true,
-      levelRequired: true,
-    },
-  },
-  opponentCharacter: {
-    select: {
-      id: true,
-      name: true,
-      hp: true,
-      attack: true,
-      levelRequired: true,
-    },
-  },
-} as const;
+import { WebsocketsGateway } from '../websockets/websockets.gateway';
 
 /**
  * perdona por todo el lio que he montado en este servico , creo que me he liado intentando controlar cosas de más para la batalla que estuviese todo bien y ya no se si podria haberse
  * simplificado más , pero he intentado hacerlo guay, el tema de las transacciones que te comenté en clase me he ayudado de la documentción y de la ia para poder conntroarlo bien
  * le he estado dando varias vueltas y creo que puede estar bien aunque aloemjor me he liado de más , no lo sé
+ * pero probandolo creo que se manejan muchas cosas en batalla y ha quedado chulo
+ * tambien hay muchas validaciones de error que no se suelen dar, pero ahí están comprobadas
+ * por que nunca se sabe lo que puede pasar
  */
-
+/**
+ * Como te comenté he modularizado muchos metodos y los tochos estan como orquestadores
+ */
 /**
  * esto de pick lo utilizo para el cliente de la transaccion de prisma que coge el tipo de user y battle que es lo unico que necesito
  * para las transacciones durante la partida, si no recibira prisma service completo , basicamente con esto se define tipos
  */
 type BattleTxClient = Pick<PrismaService, 'user' | 'battle'>;
+type AttackLevel = 'BAJO' | 'NORMAL' | 'ALTO' | 'CRITICO';
+type AttackRoll = {
+  attackLevel: AttackLevel;
+  baseAttack: number;
+  rolledAttack: number;
+  damage: number;
+};
 
 @Injectable()
 export class BattlesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly websocketsGateway: WebsocketsGateway,
+  ) {}
 
   //pvp es jugador contra jugador y pve jugador contra maquina
   
@@ -116,61 +69,88 @@ export class BattlesService {
 
   
   /**
-   * este hace lo mismo que el de arriba pero jugador vs jugador
+   * esto crea una batalla PVP en espera de que se una un segundo jugador
    */
   async startPvp(initiatorUserId: number, dto: StartPvpBattleDto) {
-    const { initiatorUser, opponentUser, myCharacter, opponentCharacter } =
-      await this.getAndValidatePvpContext(initiatorUserId, dto);
+    const { initiatorUser, myCharacter } = await this.getAndValidatePvpStartContext(
+      initiatorUserId,
+      dto,
+    );
 
-    const battle = await this.createInProgressPvpBattle({
+    const battle = await this.createWaitingPvpBattle({
       initiatorUserId: initiatorUser.id,
-      opponentUserId: opponentUser.id,
       initiatorCharacterId: myCharacter.id,
-      opponentCharacterId: opponentCharacter.id,
       initiatorStartHp: myCharacter.hp,
-      opponentStartHp: opponentCharacter.hp,
     });
 
     return {
-      message: 'Batalla PVP iniciada',
+      message: 'Batalla PVP creada. Esperando oponente',
       battleId: battle.id,
       status: battle.status,
     };
   }
 
-  
   /**
-   * esto persiste la batalla jugador vs jugador con el estado inicial y el turno de quien la inicia
+   * esto permite que el segundo jugador se una a una batalla PVP en espera
    */
-  private createInProgressPvpBattle(params: {
+  async joinPvp(battleId: number, actorUserId: number, dto: JoinPvpBattleDto) {
+    const { battle, opponentUser, opponentCharacter } =
+      await this.getAndValidatePvpJoinContext(battleId, actorUserId, dto);
+
+    const updatedBattle = await this.prisma.battle.update({
+      where: { id: battle.id },
+      data: {
+        opponentUserId: opponentUser.id,
+        opponentCharacterId: opponentCharacter.id,
+        opponentCurrentHp: opponentCharacter.hp,
+        status: 'IN_PROGRESS',
+      },
+      select: { //esta forma de traerte  los campos que quieras de prisma me gusta bastante aunque no se si será la mejor
+        id: true,
+        status: true,
+        turnNumber: true,
+        nextTurn: true,
+        initiatorCurrentHp: true,
+        opponentCurrentHp: true,
+        winnerUserId: true,
+        endedAt: true,
+      },
+    });
+
+    this.websocketsGateway.emitBattleUpdate(updatedBattle.id, {
+      type: 'BATTLE_JOINED',
+      data: updatedBattle,
+    });
+
+    return {
+      message: 'Te has unido a la batalla PVP',
+      ...updatedBattle,
+    };
+  }
+
+  private createWaitingPvpBattle(params: {
     initiatorUserId: number;
-    opponentUserId: number;
     initiatorCharacterId: number;
-    opponentCharacterId: number;
     initiatorStartHp: number;
-    opponentStartHp: number;
   }) {
     const {
       initiatorUserId,
-      opponentUserId,
       initiatorCharacterId,
-      opponentCharacterId,
       initiatorStartHp,
-      opponentStartHp,
     } = params;
 
     return this.prisma.battle.create({
       data: {
         mode: 'PVP',
-        status: 'IN_PROGRESS',
+        status: 'WAITING',
         initiatorUserId,
-        opponentUserId,
+        opponentUserId: null,
         winnerUserId: null,
         winnerIsMachine: false,
         initiatorCharacterId,
-        opponentCharacterId,
+        opponentCharacterId: null,
         initiatorCurrentHp: initiatorStartHp,
-        opponentCurrentHp: opponentStartHp,
+        opponentCurrentHp: 0,
         turnNumber: 1,
         nextTurn: 'INITIATOR',
         endedAt: null,
@@ -214,7 +194,7 @@ export class BattlesService {
   }
 
   
-  async findOne(id: number) {
+  async findOne(id: number, actor: { id: number; roles: string[] }) {
     const battle = await this.prisma.battle.findUnique({
       where: { id },
       select: battlePublicSelect,
@@ -223,6 +203,20 @@ export class BattlesService {
     if (!battle) {
       throw new NotFoundException('Batalla no encontrada');
     }
+
+    //  si es adminpuede ver cualquier batalla
+    // si no solo puede ver batallas donde participa es el tema
+    // de autorización que usamos en WebSocket al unirse a rooms de batalla
+    const isAdmin = actor.roles?.includes('ADMIN') ?? false;
+    const isParticipant =
+      battle.initiatorUserId === actor.id || battle.opponentUserId === actor.id;
+
+    if (!isAdmin && !isParticipant) {
+      throw new ForbiddenException(
+        'No puedes acceder al detalle de una batalla ajena',
+      );
+    }
+
     return battle;
   }
 
@@ -273,24 +267,12 @@ export class BattlesService {
     return { initiatorUser, myCharacter, machineCharacter };
   }
 
-  // lo mismo que el de arriba pero jugador vs jugador
-  private async getAndValidatePvpContext(
+  // valida el contexto de creación de PVP en espera (solo iniciador + su personaje)
+  private async getAndValidatePvpStartContext(
     initiatorUserId: number,
     dto: StartPvpBattleDto,
   ) {
-    const { opponentUserId, myCharacterId, opponentCharacterId } = dto;
-
-    if (initiatorUserId === opponentUserId) {
-      throw new BadRequestException(
-        'No puedes iniciar una batalla PVP contra ti mismo',
-      );
-    }
-
-    if (myCharacterId === opponentCharacterId) {
-      throw new BadRequestException(
-        'No se puede usar el mismo personaje para ambos lados',
-      );
-    }
+    const { myCharacterId } = dto;
 
     const initiatorUser = await this.prisma.user.findUnique({
       where: { id: initiatorUserId },
@@ -298,34 +280,16 @@ export class BattlesService {
     });
 
     if (!initiatorUser) {
-      throw new NotFoundException('Usuario Iniciante no encontrado');
-    }
-
-    const opponentUser = await this.prisma.user.findUnique({
-      where: { id: opponentUserId },
-      select: { id: true, level: true },
-    });
-
-    if (!opponentUser) {
-      throw new NotFoundException('Usuario Oponente no encontrado');
+      throw new NotFoundException('Usuario iniciador no encontrado');
     }
 
     const myCharacter = await this.prisma.character.findUnique({
       where: { id: myCharacterId },
-      select: { id: true, hp: true, attack: true, levelRequired: true },
+      select: { id: true, hp: true, levelRequired: true },
     });
 
     if (!myCharacter) {
       throw new NotFoundException('Personaje iniciador no encontrado');
-    }
-
-    const opponentCharacter = await this.prisma.character.findUnique({
-      where: { id: opponentCharacterId },
-      select: { id: true, hp: true, attack: true, levelRequired: true },
-    });
-
-    if (!opponentCharacter) {
-      throw new NotFoundException('Personaje oponente no encontrado');
     }
 
     if (myCharacter.levelRequired > initiatorUser.level) {
@@ -334,27 +298,113 @@ export class BattlesService {
       );
     }
 
-    if (opponentCharacter.levelRequired > opponentUser.level) {
+    return { initiatorUser, myCharacter };
+  }
+
+  // valida el contexto cuando un segundo jugador se une a una PVP en espera
+  private async getAndValidatePvpJoinContext(
+    battleId: number,
+    actorUserId: number,
+    dto: JoinPvpBattleDto,
+  ) {
+    const { myCharacterId } = dto;
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        mode: true,
+        status: true,
+        initiatorUserId: true,
+        opponentUserId: true,
+        initiatorCharacterId: true,
+      },
+    });
+
+    if (!battle) {
+      throw new NotFoundException('Batalla no encontrada');
+    }
+
+    if (battle.mode !== 'PVP') {
+      throw new BadRequestException('Solo puedes unirte a batallas PVP');
+    }
+
+    if (battle.status !== 'WAITING') {
+      throw new BadRequestException('La batalla no está esperando oponente');
+    }
+
+    if (battle.initiatorUserId === actorUserId) {
+      throw new BadRequestException('No puedes unirte a tu propia batalla');
+    }
+
+    if (battle.opponentUserId) {
+      throw new BadRequestException('La batalla ya tiene oponente');
+    }
+
+    if (battle.initiatorCharacterId === myCharacterId) {
       throw new BadRequestException(
-        `El oponente no puede usar este personaje: nivel usuario (${opponentUser.level}), requiere (${opponentCharacter.levelRequired})`,
+        'No se puede usar el mismo personaje para ambos lados',
       );
     }
 
-    return { initiatorUser, opponentUser, myCharacter, opponentCharacter };
+    const opponentUser = await this.prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { id: true, level: true },
+    });
+
+    if (!opponentUser) {
+      throw new NotFoundException('Usuario oponente no encontrado');
+    }
+
+    const opponentCharacter = await this.prisma.character.findUnique({
+      where: { id: myCharacterId },
+      select: { id: true, hp: true, levelRequired: true },
+    });
+
+    if (!opponentCharacter) {
+      throw new NotFoundException('Personaje oponente no encontrado');
+    }
+
+    if (opponentCharacter.levelRequired > opponentUser.level) {
+      throw new BadRequestException(
+        `Tu nivel (${opponentUser.level}) no permite usar este personaje (requiere ${opponentCharacter.levelRequired})`,
+      );
+    }
+
+    return { battle, opponentUser, opponentCharacter };
   }
 
   // hace un turno jugador vs jugadro y  aplica daño, avanza turno o cierra batalla con recompensas
-  async playNextTurnPvp(battleId: number) {
+  async playNextTurnPvp(battleId: number, actorUserId: number) {
     const battle = await this.getPvpBattleForTurn(battleId);
+    this.assertActorCanPlayPvpTurn(battle, actorUserId);
 
     let initiatorHp = battle.initiatorCurrentHp;
     let opponentHp = battle.opponentCurrentHp;
+    const attackerSide = battle.nextTurn;
+    const attackRoll =
+      attackerSide === 'INITIATOR'
+        ? this.rollAttack(battle.initiatorCharacter.attack)
+        : this.rollAttack(battle.opponentCharacter.attack);
+    let damageApplied = 0;
 
-    if (battle.nextTurn === 'INITIATOR') {
-      opponentHp = Math.max(0, opponentHp - battle.initiatorCharacter.attack);
+    if (attackerSide === 'INITIATOR') {
+      const opponentHpBefore = opponentHp;
+      opponentHp = Math.max(0, opponentHp - attackRoll.damage);
+      damageApplied = opponentHpBefore - opponentHp;
     } else {
-      initiatorHp = Math.max(0, initiatorHp - battle.opponentCharacter.attack);
+      const initiatorHpBefore = initiatorHp;
+      initiatorHp = Math.max(0, initiatorHp - attackRoll.damage);
+      damageApplied = initiatorHpBefore - initiatorHp;
     }
+
+    const turnAttack = {
+      attacker: attackerSide,
+      attackLevel: attackRoll.attackLevel,
+      baseAttack: attackRoll.baseAttack,
+      rolledAttack: attackRoll.rolledAttack,
+      damage: damageApplied,
+    };
 
     const finished = initiatorHp === 0 || opponentHp === 0;
     const nextTurn = battle.nextTurn === 'INITIATOR' ? 'OPPONENT' : 'INITIATOR';
@@ -380,8 +430,15 @@ export class BattlesService {
         },
       });
 
+      this.websocketsGateway.emitBattleUpdate(updatedBattle.id, {
+        type: 'TURN_APPLIED',
+        data: updatedBattle,
+        turnAttack,
+      });
+
       return {
         message: 'Turno aplicado',
+        turnAttack,
         ...updatedBattle,
       };
     }
@@ -422,8 +479,15 @@ export class BattlesService {
       return closedBattle;
     });
 
+    this.websocketsGateway.emitBattleUpdate(finishedBattle.id, {
+      type: 'BATTLE_FINISHED',
+      data: finishedBattle,
+      turnAttack,
+    });
+
     return {
       message: 'Turno aplicado y batalla finalizada',
+      turnAttack,
       ...finishedBattle,
     };
   }
@@ -454,6 +518,10 @@ export class BattlesService {
       throw new BadRequestException('Este método es solo para PVP');
     }
 
+    if (battle.status === 'FINISHED') {
+      throw new BadRequestException('La batalla ha finalizado');
+    }
+
     if (battle.status !== 'IN_PROGRESS') {
       throw new BadRequestException('La batalla no está en progreso');
     }
@@ -464,21 +532,49 @@ export class BattlesService {
       );
     }
 
+    if (!battle.opponentCharacter) {
+      throw new BadRequestException(
+        'Batalla PVP inválida: falta opponentCharacter',
+      );
+    }
+
     return {
       ...battle,
       opponentUserId: battle.opponentUserId,
+      opponentCharacter: battle.opponentCharacter,
     };
   }
 
+  // valida que el usuario autenticado sea justo el que tiene el turno actual
+  private assertActorCanPlayPvpTurn(
+    battle: {
+      nextTurn: 'INITIATOR' | 'OPPONENT';
+      initiatorUserId: number;
+      opponentUserId: number;
+    },
+    actorUserId: number,
+  ) {
+    const expectedUserId =
+      battle.nextTurn === 'INITIATOR'
+        ? battle.initiatorUserId
+        : battle.opponentUserId;
+
+    if (actorUserId !== expectedUserId) {
+      throw new ForbiddenException('No es tu turno');
+    }
+  }
+
   // hace el turno vs maquina y  ataque del jugador + contraataque de máquina o cierre de batalla
-  async playNextTurnPve(battleId: number) {
+  async playNextTurnPve(battleId: number, actorUserId: number) {
     const battle = await this.getPveBattleForTurn(battleId);
+    this.assertActorCanPlayPveTurn(battle, actorUserId);
 
     let initiatorHp = battle.initiatorCurrentHp;
-    let machineHp = Math.max(
-      0,
-      battle.opponentCurrentHp - battle.initiatorCharacter.attack,
-    );
+    let machineHp = battle.opponentCurrentHp;
+    const playerAttackRoll = this.rollAttack(battle.initiatorCharacter.attack);
+    const machineHpBefore = machineHp;
+    machineHp = Math.max(0, machineHp - playerAttackRoll.damage);
+    const playerDamage = machineHpBefore - machineHp;
 
     if (machineHp === 0) {
       return this.finishPveBattleWithTransaction({
@@ -487,10 +583,22 @@ export class BattlesService {
         initiatorHp,
         machineHp,
         initiatorWon: true,
+        turnSummary: {
+          playerAttack: {
+            attackLevel: playerAttackRoll.attackLevel,
+            baseAttack: playerAttackRoll.baseAttack,
+            rolledAttack: playerAttackRoll.rolledAttack,
+            damage: playerDamage,
+          },
+          machineAttack: null,
+        },
       });
     }
 
-    initiatorHp = Math.max(0, initiatorHp - battle.opponentCharacter.attack);
+    const machineAttackRoll = this.rollAttack(battle.opponentCharacter.attack);
+    const initiatorHpBefore = initiatorHp;
+    initiatorHp = Math.max(0, initiatorHp - machineAttackRoll.damage);
+    const machineDamage = initiatorHpBefore - initiatorHp;
 
     if (initiatorHp === 0) {
       return this.finishPveBattleWithTransaction({
@@ -499,6 +607,20 @@ export class BattlesService {
         initiatorHp,
         machineHp,
         initiatorWon: false,
+        turnSummary: {
+          playerAttack: {
+            attackLevel: playerAttackRoll.attackLevel,
+            baseAttack: playerAttackRoll.baseAttack,
+            rolledAttack: playerAttackRoll.rolledAttack,
+            damage: playerDamage,
+          },
+          machineAttack: {
+            attackLevel: machineAttackRoll.attackLevel,
+            baseAttack: machineAttackRoll.baseAttack,
+            rolledAttack: machineAttackRoll.rolledAttack,
+            damage: machineDamage,
+          },
+        },
       });
     }
 
@@ -506,7 +628,31 @@ export class BattlesService {
       battleId: battle.id,
       initiatorHp,
       machineHp,
+      turnSummary: {
+        playerAttack: {
+          attackLevel: playerAttackRoll.attackLevel,
+          baseAttack: playerAttackRoll.baseAttack,
+          rolledAttack: playerAttackRoll.rolledAttack,
+          damage: playerDamage,
+        },
+        machineAttack: {
+          attackLevel: machineAttackRoll.attackLevel,
+          baseAttack: machineAttackRoll.baseAttack,
+          rolledAttack: machineAttackRoll.rolledAttack,
+          damage: machineDamage,
+        },
+      },
     });
+  }
+
+  // valida que en PVE solo el usuario iniciador de la batalla pueda jugar turnos
+  private assertActorCanPlayPveTurn(
+    battle: { initiatorUserId: number },
+    actorUserId: number,
+  ) {
+    if (battle.initiatorUserId !== actorUserId) {
+      throw new ForbiddenException('No puedes jugar el turno de una batalla ajena');
+    }
   }
 
   // esto carga y valida que la batalla sea vs maquina y esté en progreso antes de jugar un turno
@@ -533,6 +679,10 @@ export class BattlesService {
       throw new BadRequestException('Este método es solo para PVE');
     }
 
+    if (battle.status === 'FINISHED') {
+      throw new BadRequestException('La batalla ha finalizado');
+    }
+
     if (battle.status !== 'IN_PROGRESS') {
       throw new BadRequestException('La batalla no está en progreso');
     }
@@ -547,9 +697,29 @@ export class BattlesService {
     initiatorHp: number;
     machineHp: number;
     initiatorWon: boolean;
+    turnSummary: {
+      playerAttack: {
+        attackLevel: AttackLevel;
+        baseAttack: number;
+        rolledAttack: number;
+        damage: number;
+      };
+      machineAttack: {
+        attackLevel: AttackLevel;
+        baseAttack: number;
+        rolledAttack: number;
+        damage: number;
+      } | null;
+    };
   }) {
-    const { battleId, initiatorUserId, initiatorHp, machineHp, initiatorWon } =
-      params;
+    const {
+      battleId,
+      initiatorUserId,
+      initiatorHp,
+      machineHp,
+      initiatorWon,
+      turnSummary,
+    } = params;
 
     const finishedBattle = await this.prisma.$transaction(async (tx) => {
       const closedBattle = await tx.battle.update({
@@ -589,8 +759,15 @@ export class BattlesService {
       return closedBattle;
     });
 
+    this.websocketsGateway.emitBattleUpdate(finishedBattle.id, {
+      type: 'BATTLE_FINISHED',
+      data: finishedBattle,
+      turnSummary,
+    });
+
     return {
       message: 'Turno aplicado y batalla finalizada',
+      turnSummary,
       ...finishedBattle,
     };
   }
@@ -600,8 +777,22 @@ export class BattlesService {
     battleId: number;
     initiatorHp: number;
     machineHp: number;
+    turnSummary: {
+      playerAttack: {
+        attackLevel: AttackLevel;
+        baseAttack: number;
+        rolledAttack: number;
+        damage: number;
+      };
+      machineAttack: {
+        attackLevel: AttackLevel;
+        baseAttack: number;
+        rolledAttack: number;
+        damage: number;
+      };
+    };
   }) {
-    const { battleId, initiatorHp, machineHp } = params;
+    const { battleId, initiatorHp, machineHp, turnSummary } = params;
     const updatedBattle = await this.prisma.battle.update({
       where: { id: battleId },
       data: {
@@ -621,9 +812,60 @@ export class BattlesService {
       },
     });
 
+    this.websocketsGateway.emitBattleUpdate(updatedBattle.id, {
+      type: 'TURN_APPLIED',
+      data: updatedBattle,
+      turnSummary,
+    });
+
     return {
       message: 'Turno aplicado',
+      turnSummary,
       ...updatedBattle,
+    };
+  }
+
+  //esto por darle un poco de vidilla al juego si no era un poco aburrio siempre
+  // genera ataque aleatorio para que cada turno tenga variación y no sea siempre fijo
+  private rollAttack(baseAttack: number): AttackRoll {
+    const rng = Math.random();
+
+    if (rng < 0.2) {
+      const rolledAttack = Math.max(1, Math.round(baseAttack * 0.8));
+      return {
+        attackLevel: 'BAJO',
+        baseAttack,
+        rolledAttack,
+        damage: rolledAttack,
+      };
+    }
+
+    if (rng < 0.75) {
+      const rolledAttack = Math.max(1, Math.round(baseAttack * 1.0));
+      return {
+        attackLevel: 'NORMAL',
+        baseAttack,
+        rolledAttack,
+        damage: rolledAttack,
+      };
+    }
+
+    if (rng < 0.95) {
+      const rolledAttack = Math.max(1, Math.round(baseAttack * 1.2));
+      return {
+        attackLevel: 'ALTO',
+        baseAttack,
+        rolledAttack,
+        damage: rolledAttack,
+      };
+    }
+
+    const rolledAttack = Math.max(1, Math.round(baseAttack * 1.5));
+    return {
+      attackLevel: 'CRITICO',
+      baseAttack,
+      rolledAttack,
+      damage: rolledAttack,
     };
   }
 

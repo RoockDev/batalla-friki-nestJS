@@ -12,6 +12,7 @@ import type { Request } from 'express';
 import { BattlesService } from './battles.service';
 import { StartPveBattleDto } from './dto/start-pve-battle.dto';
 import { StartPvpBattleDto } from './dto/start-pvp-battle.dto';
+import { JoinPvpBattleDto } from './dto/join-pvp-battle.dto';
 import { JwtAuthGuard } from '../auth/jwt.strategy/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles/roles.guard';
 import { Roles } from '../auth/roles/roles.decorator';
@@ -36,18 +37,31 @@ export class BattlesController {
     return this.battlesService.startPvp(user.id, dto);
   }
 
+  @Post(':id/join/pvp')
+  joinPvp(
+    @Req() req: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: JoinPvpBattleDto,
+  ) {
+    const user = req.user as { id: number };
+    return this.battlesService.joinPvp(id, user.id, dto);
+  }
+
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.battlesService.findOne(id);
+  findOne(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
+    const user = req.user as { id: number; roles: string[] };
+    return this.battlesService.findOne(id, user);
   }
 
   @Post(':id/turn')
-  playNextTurn(@Param('id', ParseIntPipe) id: number) {
-    return this.battlesService.playNextTurnPvp(id)
+  playNextTurn(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
+    const user = req.user as { id: number };
+    return this.battlesService.playNextTurnPvp(id, user.id);
   }
 
   @Post(':id/turn/pve')
-  playNextTurnPve(@Param('id', ParseIntPipe)id:number){
-    return this.battlesService.playNextTurnPve(id);
+  playNextTurnPve(@Req() req: Request, @Param('id', ParseIntPipe) id: number) {
+    const user = req.user as { id: number };
+    return this.battlesService.playNextTurnPve(id, user.id);
   }
 }
