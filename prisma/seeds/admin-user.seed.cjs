@@ -1,9 +1,9 @@
 const bcrypt = require('bcrypt');
 
-async function seedAdminUser(prisma) {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@batalla.com';
-  const adminPassword = process.env.ADMIN_PASSWORD || '123456';
+const ADMIN_EMAIL = 'admin@batalla.com';
+const ADMIN_PASSWORD = '123456';
 
+async function seedAdminUser(prisma) {
   const adminRole = await prisma.role.findUnique({
     where: { name: 'ADMIN' },
   });
@@ -12,13 +12,13 @@ async function seedAdminUser(prisma) {
     throw new Error('No existe el rol ADMIN. Ejecuta seedRoles antes.');
   }
 
-  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+  const hashedPassword = await bcrypt.hash(ADMIN_PASSWORD, 10);
 
   const adminUser = await prisma.user.upsert({
-    where: { email: adminEmail },
+    where: { email: ADMIN_EMAIL },
     update: { password: hashedPassword },
     create: {
-      email: adminEmail,
+      email: ADMIN_EMAIL,
       password: hashedPassword,
     },
   });
@@ -37,9 +37,11 @@ async function seedAdminUser(prisma) {
     },
   });
 
-  console.log(`Admin seeded: ${adminEmail}`);
+  console.log(`Admin seeded: ${ADMIN_EMAIL}`);
 }
 
 module.exports = {
   seedAdminUser,
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
 };
