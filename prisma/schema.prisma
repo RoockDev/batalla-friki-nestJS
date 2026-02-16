@@ -70,6 +70,7 @@ enum BattleMode{
 }
 
 enum BattleStatus{
+  WAITING
   IN_PROGRESS
   FINISHED
 }
@@ -90,7 +91,7 @@ model Battle {
   winnerIsMachine      Boolean      @default(false)
 
   initiatorCharacterId Int
-  opponentCharacterId  Int
+  opponentCharacterId  Int?
 
   initiatorCurrentHp   Int @default(1)
   opponentCurrentHp    Int @default(1)
@@ -103,10 +104,9 @@ model Battle {
   winnerUser           User?        @relation("WonBattles", fields: [winnerUserId], references: [id])
 
   initiatorCharacter   Character    @relation("InitiatorCharacterBattles", fields: [initiatorCharacterId], references: [id])
-  opponentCharacter    Character    @relation("OpponentCharacterBattles", fields: [opponentCharacterId], references: [id])
+  opponentCharacter    Character?   @relation("OpponentCharacterBattles", fields: [opponentCharacterId], references: [id])
 
   endedAt              DateTime?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
 }
-
