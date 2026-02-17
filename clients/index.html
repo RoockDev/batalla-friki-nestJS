@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Batalla Friki - Cliente</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: Verdana, sans-serif;
+        background: #f5f7fb;
+        color: #111827;
+      }
+      .container {
+        max-width: 1120px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 14px;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+      .grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #d8deeb;
+        border-radius: 10px;
+        padding: 14px;
+      }
+      label {
+        display: block;
+        margin: 7px 0;
+      }
+      input,
+      select,
+      button {
+        font: inherit;
+      }
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 4px;
+        padding: 8px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      button {
+        border: 1px solid #111827;
+        border-radius: 7px;
+        padding: 8px 12px;
+        background: #111827;
+        color: #fff;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #fff;
+        color: #111827;
+      }
+      .status {
+        margin: 8px 0 0;
+        font-size: 14px;
+      }
+      .msg-ok {
+        color: #166534;
+      }
+      .msg-error {
+        color: #b91c1c;
+      }
+      .battle-panel {
+        margin-top: 14px;
+      }
+      .arena {
+        display: grid;
+        grid-template-columns: 1fr 60px 1fr;
+        gap: 8px;
+        align-items: center;
+      }
+      .fighter {
+        border: 1px solid #d8deeb;
+        border-radius: 8px;
+        background: #fafcff;
+        padding: 10px;
+      }
+      .fighter h3 {
+        margin: 0 0 8px;
+        font-size: 16px;
+      }
+      .vs {
+        text-align: center;
+        font-weight: 700;
+      }
+      .muted {
+        color: #4b5563;
+        font-size: 13px;
+      }
+      .hp-wrap {
+        height: 12px;
+        background: #e5e7eb;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .hp-bar {
+        height: 100%;
+        background: #22c55e;
+        width: 0%;
+      }
+      .turns {
+        margin-top: 12px;
+        border: 1px solid #d8deeb;
+        border-radius: 8px;
+        min-height: 110px;
+        max-height: 260px;
+        overflow: auto;
+        padding: 8px 10px;
+        background: #fff;
+      }
+      .turn {
+        font-size: 14px;
+        padding: 6px 0;
+        border-bottom: 1px dashed #e5e7eb;
+      }
+      .turn:last-child {
+        border-bottom: none;
+      }
+      .lists {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .correction-single-col {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .list-box {
+        border: 1px solid #d8deeb;
+        border-radius: 8px;
+        padding: 8px 10px;
+        max-height: 260px;
+        overflow: auto;
+        background: #fff;
+      }
+      .list-box h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+      .list-box ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .list-box li {
+        margin-bottom: 6px;
+        font-size: 13px;
+      }
+      pre {
+        margin: 0;
+        background: #0b1220;
+        color: #dbeafe;
+        border-radius: 8px;
+        min-height: 170px;
+        max-height: 260px;
+        overflow: auto;
+        padding: 10px;
+        font-size: 12px;
+      }
+      @media (max-width: 760px) {
+        .arena {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Batalla Friki - Cliente de correccion</h1>
+
+      <section class="card" style="margin-bottom: 14px">
+        <h2>1) Datos para correccion</h2>
+        <div class="row">
+          <button id="seedDbBtn">Lanzar seed</button>
+          <button id="clearDbBtn" class="secondary">Vaciar base de datos</button>
+          <button id="loadOverviewBtn" class="secondary">Ver usuarios y personajes</button>
+          <button id="loadRankingBtn" class="secondary">Ver ranking</button>
+        </div>
+        <p class="status" id="overviewInfo">
+          Este bloque muestra usuarios+roles y personajes para revisar la entrega.
+        </p>
+        <div class="correction-single-col">
+          <div class="list-box">
+            <h3>Ranking Top 10</h3>
+            <ul id="rankingList"></ul>
+            <p class="status" id="rankingInfo">Haz login para cargar ranking</p>
+          </div>
+          <div class="list-box">
+            <h3>Usuarios creados</h3>
+            <ul id="usersList"></ul>
+          </div>
+          <div class="list-box">
+            <h3>Personajes creados</h3>
+            <ul id="charactersList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid">
+        <section class="card">
+          <h2>2) Registro / Login</h2>
+          <label>
+            Email
+            <input id="email" value="user1@batalla.com" />
+          </label>
+          <label>
+            Password
+            <input id="password" type="password" value="123456" />
+          </label>
+          <div class="row">
+            <button id="registerBtn">Registrar</button>
+            <button id="loginBtn" class="secondary">Login</button>
+          </div>
+          <p id="authInfo" class="status">No autenticado</p>
+          <p id="userStats" class="status">Nivel: - | XP: - | Wins: - | Losses: -</p>
+          <p id="wsInfo" class="status">WS desconectado</p>
+          <p id="authMessage" class="status">-</p>
+        </section>
+
+        <section class="card">
+          <h2>3) Tu personaje</h2>
+          <label>
+            Selecciona personaje
+            <select id="myCharacterSelect"></select>
+          </label>
+          <div class="row">
+            <button id="reloadCharactersBtn" class="secondary">Recargar personajes</button>
+          </div>
+          <p id="characterInfo" class="status">Personajes sin cargar</p>
+          <p id="characterMessage" class="status">-</p>
+        </section>
+
+        <section class="card">
+          <h2>4) Crear / Unirse PVP</h2>
+          <div class="row">
+            <button id="createPvpBtn">Crear PVP (esperar rival)</button>
+          </div>
+          <label>
+            ID batalla para unirte
+            <input id="joinBattleIdInput" type="number" min="1" placeholder="Ej: 12" />
+          </label>
+          <div class="row">
+            <button id="joinPvpBtn" class="secondary">Unirme a PVP</button>
+          </div>
+          <p class="status" id="pvpHelp">
+            Navegador A crea la partida, Navegador B mete el ID y se une.
+          </p>
+          <p id="pvpMessage" class="status">-</p>
+        </section>
+
+        <section class="card">
+          <h2>5) PVE y Turnos</h2>
+          <div class="row">
+            <button id="startPveBtn">Iniciar vs maquina</button>
+            <button id="playTurnBtn">Atacar</button>
+            <button id="refreshBattleBtn" class="secondary">Refrescar</button>
+          </div>
+          <p id="battleInfo" class="status">Sin partida activa</p>
+          <p id="turnMessage" class="status">-</p>
+        </section>
+      </div>
+
+      <section class="card battle-panel">
+        <h2>Partida en pantalla</h2>
+        <p id="battleHeader" class="status">Inicia o únete a una partida</p>
+        <div class="arena">
+          <div class="fighter">
+            <h3 id="leftName">-</h3>
+            <div class="muted" id="leftUser">-</div>
+            <div class="muted" id="leftStats">ATK - | HP max -</div>
+            <div class="hp-wrap"><div id="leftHpBar" class="hp-bar"></div></div>
+            <div class="muted" id="leftHpText">HP actual: -</div>
+          </div>
+          <div class="vs">VS</div>
+          <div class="fighter">
+            <h3 id="rightName">-</h3>
+            <div class="muted" id="rightUser">-</div>
+            <div class="muted" id="rightStats">ATK - | HP max -</div>
+            <div class="hp-wrap"><div id="rightHpBar" class="hp-bar"></div></div>
+            <div class="muted" id="rightHpText">HP actual: -</div>
+          </div>
+        </div>
+        <div id="turns" class="turns"></div>
+      </section>
+
+      <section class="card" style="margin-top: 14px">
+        <h2>log para ver las respuestas json y no tener que usar postman</h2>
+        <pre id="logBox"></pre>
+      </section>
+    </div>
+
+    <script>
+      const API_BASE_URL = 'http://localhost:3000';
+
+      const state = {
+        token: null,
+        user: null,
+        socket: null,
+        characters: [],
+        currentBattleId: null,
+        currentBattleMode: null,
+        lastBattleSnapshot: null,
+        lastBattleSignature: null,
+      };
+
+      const el = {
+        email: document.getElementById('email'),
+        password: document.getElementById('password'),
+        registerBtn: document.getElementById('registerBtn'),
+        loginBtn: document.getElementById('loginBtn'),
+        authInfo: document.getElementById('authInfo'),
+        userStats: document.getElementById('userStats'),
+        wsInfo: document.getElementById('wsInfo'),
+        myCharacterSelect: document.getElementById('myCharacterSelect'),
+        reloadCharactersBtn: document.getElementById('reloadCharactersBtn'),
+        characterInfo: document.getElementById('characterInfo'),
+        createPvpBtn: document.getElementById('createPvpBtn'),
+        joinBattleIdInput: document.getElementById('joinBattleIdInput'),
+        joinPvpBtn: document.getElementById('joinPvpBtn'),
+        startPveBtn: document.getElementById('startPveBtn'),
+        playTurnBtn: document.getElementById('playTurnBtn'),
+        refreshBattleBtn: document.getElementById('refreshBattleBtn'),
+        seedDbBtn: document.getElementById('seedDbBtn'),
+        clearDbBtn: document.getElementById('clearDbBtn'),
+        loadOverviewBtn: document.getElementById('loadOverviewBtn'),
+        loadRankingBtn: document.getElementById('loadRankingBtn'),
+        authMessage: document.getElementById('authMessage'),
+        characterMessage: document.getElementById('characterMessage'),
+        pvpMessage: document.getElementById('pvpMessage'),
+        turnMessage: document.getElementById('turnMessage'),
+        overviewInfo: document.getElementById('overviewInfo'),
+        rankingInfo: document.getElementById('rankingInfo'),
+        rankingList: document.getElementById('rankingList'),
+        usersList: document.getElementById('usersList'),
+        charactersList: document.getElementById('charactersList'),
+        battleInfo: document.getElementById('battleInfo'),
+        battleHeader: document.getElementById('battleHeader'),
+        leftName: document.getElementById('leftName'),
+        leftUser: document.getElementById('leftUser'),
+        leftStats: document.getElementById('leftStats'),
+        leftHpBar: document.getElementById('leftHpBar'),
+        leftHpText: document.getElementById('leftHpText'),
+        rightName: document.getElementById('rightName'),
+        rightUser: document.getElementById('rightUser'),
+        rightStats: document.getElementById('rightStats'),
+        rightHpBar: document.getElementById('rightHpBar'),
+        rightHpText: document.getElementById('rightHpText'),
+        turns: document.getElementById('turns'),
+        logBox: document.getElementById('logBox'),
+      };
+
+      function log(message, payload) {
+        const line =
+          payload === undefined
+            ? `[${new Date().toLocaleTimeString()}] ${message}`
+            : `[${new Date().toLocaleTimeString()}] ${message} ${JSON.stringify(payload, null, 2)}`;
+        el.logBox.textContent += `${line}\n`;
+        el.logBox.scrollTop = el.logBox.scrollHeight;
+      }
+
+      function setBoxMessage(element, text, isError = false) {
+        element.textContent = text;
+        element.classList.remove('msg-ok', 'msg-error');
+        element.classList.add(isError ? 'msg-error' : 'msg-ok');
+      }
+
+      function renderUserStats(user) {
+        if (!user) {
+          el.userStats.textContent = 'Nivel: - | XP: - | Wins: - | Losses: -';
+          return;
+        }
+        el.userStats.textContent = `Nivel: ${user.level} | XP: ${user.xp} | Wins: ${user.wins} | Losses: ${user.losses}`;
+      }
+
+      function unwrap(json) {
+        return json && typeof json === 'object' && 'data' in json ? json.data : json;
+      }
+
+      async function request(path, options = {}, withAuth = true) {
+        const headers = {
+          Accept: 'application/json',
+          ...(options.headers || {}),
+        };
+        if (options.body && !headers['Content-Type']) {
+          headers['Content-Type'] = 'application/json';
+        }
+        if (withAuth && state.token) {
+          headers.Authorization = `Bearer ${state.token}`;
+        }
+
+        const response = await fetch(`${API_BASE_URL}${path}`, {
+          ...options,
+          headers,
+          body:
+            options.body && typeof options.body !== 'string'
+              ? JSON.stringify(options.body)
+              : options.body,
+        });
+
+        const text = await response.text();
+        const json = text ? JSON.parse(text) : null;
+        if (!response.ok) {
+          const msg = json?.message || `HTTP ${response.status}`;
+          throw new Error(Array.isArray(msg) ? msg.join(', ') : msg);
+        }
+        return json;
+      }
+
+      function addTurn(text) {
+        const div = document.createElement('div');
+        div.className = 'turn';
+        div.textContent = text;
+        el.turns.prepend(div);
+      }
+
+      function clearTurns() {
+        el.turns.innerHTML = '';
+      }
+
+      function hpPct(current, max) {
+        if (!max || max <= 0) return 0;
+        return Math.max(0, Math.min(100, Math.round((current / max) * 100)));
+      }
+
+      function getMyCharacterIdOrThrow() {
+        const id = Number(el.myCharacterSelect.value);
+        if (!id) throw new Error('Selecciona personaje');
+        return id;
+      }
+
+      function pickMachineCharacterId(myCharacterId) {
+        const options = state.characters.filter((c) => c.id !== myCharacterId);
+        if (options.length === 0) throw new Error('Se necesitan al menos 2 personajes');
+        const randomIndex = Math.floor(Math.random() * options.length);
+        return options[randomIndex].id;
+      }
+
+      function renderBattleBoard(battle) {
+        const iChar = battle.initiatorCharacter;
+        const oChar = battle.opponentCharacter;
+
+        const leftMax = iChar?.hp ?? battle.initiatorCurrentHp ?? 0;
+        const rightMax = oChar?.hp ?? battle.opponentCurrentHp ?? 0;
+
+        el.leftName.textContent = iChar?.name ?? 'Iniciador';
+        el.leftUser.textContent = battle.initiatorUser?.email
+          ? `Jugador: ${battle.initiatorUser.email}`
+          : `Usuario #${battle.initiatorUserId}`;
+        el.leftStats.textContent = `ATK ${iChar?.attack ?? '-'} | HP max ${leftMax}`;
+        el.leftHpBar.style.width = `${hpPct(battle.initiatorCurrentHp ?? 0, leftMax)}%`;
+        el.leftHpText.textContent = `HP actual: ${battle.initiatorCurrentHp ?? 0}/${leftMax}`;
+
+        el.rightName.textContent = oChar?.name ?? 'Esperando oponente';
+        if (battle.mode === 'PVE') {
+          el.rightUser.textContent = 'Rival: MAQUINA';
+        } else if (battle.opponentUser?.email) {
+          el.rightUser.textContent = `Jugador: ${battle.opponentUser.email}`;
+        } else {
+          el.rightUser.textContent = 'Rival: pendiente de unirse';
+        }
+        el.rightStats.textContent = `ATK ${oChar?.attack ?? '-'} | HP max ${rightMax}`;
+        el.rightHpBar.style.width = `${hpPct(battle.opponentCurrentHp ?? 0, rightMax)}%`;
+        el.rightHpText.textContent = `HP actual: ${battle.opponentCurrentHp ?? 0}/${rightMax}`;
+
+        el.battleHeader.textContent = `Batalla ${battle.id} | ${battle.mode} | ${battle.status} | turno ${battle.turnNumber}`;
+      }
+
+      function signature(battle) {
+        return [
+          battle.id,
+          battle.status,
+          battle.turnNumber,
+          battle.nextTurn,
+          battle.initiatorCurrentHp,
+          battle.opponentCurrentHp,
+          battle.opponentUserId,
+        ].join(':');
+      }
+
+      function describeTurn(prev, current) {
+        if (!prev) return `Partida ${current.id} creada (${current.mode})`;
+        if (current.status === 'WAITING') return 'Esperando oponente...';
+        if (prev.status === 'WAITING' && current.status === 'IN_PROGRESS') {
+          return 'El oponente se ha unido. La partida empieza.';
+        }
+        if (current.mode === 'PVE') {
+          const dmgMachine = Math.max(0, (prev.opponentCurrentHp ?? 0) - (current.opponentCurrentHp ?? 0));
+          const dmgYou = Math.max(0, (prev.initiatorCurrentHp ?? 0) - (current.initiatorCurrentHp ?? 0));
+          return `Turno ${current.turnNumber}: tu haces ${dmgMachine} de dano, maquina hace ${dmgYou}`;
+        }
+        const attacker = prev.nextTurn === 'INITIATOR' ? 'Iniciador' : 'Oponente';
+        const dmgToOpp = Math.max(0, (prev.opponentCurrentHp ?? 0) - (current.opponentCurrentHp ?? 0));
+        const dmgToIni = Math.max(0, (prev.initiatorCurrentHp ?? 0) - (current.initiatorCurrentHp ?? 0));
+        const dmg = attacker === 'Iniciador' ? dmgToOpp : dmgToIni;
+        return `Turno ${current.turnNumber}: ataca ${attacker} y hace ${dmg} de daño`;
+      }
+
+      function applyBattleSnapshot(battle, source) {
+        const sig = signature(battle);
+        if (sig !== state.lastBattleSignature) {
+          addTurn(`[${source}] ${describeTurn(state.lastBattleSnapshot, battle)}`);
+          if (battle.status === 'FINISHED') {
+            if (battle.winnerIsMachine) {
+              addTurn('Resultado: gana la MAQUINA');
+            } else {
+              const winner =
+                battle.winnerUser?.email ||
+                (battle.winnerUserId ? `usuario #${battle.winnerUserId}` : 'sin ganador');
+              addTurn(`Resultado: gana ${winner}`);
+            }
+          }
+        }
+        state.lastBattleSnapshot = battle;
+        state.lastBattleSignature = sig;
+        renderBattleBoard(battle);
+      }
+
+      function updateCharacterInfo() {
+        const id = Number(el.myCharacterSelect.value);
+        const selected = state.characters.find((c) => c.id === id);
+        if (!selected) {
+          el.characterInfo.textContent = 'Personajes sin cargar';
+          return;
+        }
+        el.characterInfo.textContent = `Elegido: ${selected.name} | ATK ${selected.attack} | HP ${selected.hp} | nivel req ${selected.levelRequired}`;
+      }
+
+      async function loadCharacters() {
+        const json = await request('/characters');
+        const chars = unwrap(json);
+        state.characters = chars;
+        el.myCharacterSelect.innerHTML = chars
+          .map(
+            (c) =>
+              `<option value="${c.id}">${c.name} (ATK ${c.attack}, HP ${c.hp}, lvlReq ${c.levelRequired})</option>`,
+          )
+          .join('');
+        updateCharacterInfo();
+        setBoxMessage(el.characterMessage, `Cargados ${chars.length} personajes`);
+        log('Personajes cargados', { total: chars.length });
+      }
+
+      function renderOverview(data) {
+        el.usersList.innerHTML = '';
+        el.charactersList.innerHTML = '';
+
+        data.users.forEach((user) => {
+          const li = document.createElement('li');
+          const pwd = user.loginPasswordHint ? ` | pass: ${user.loginPasswordHint}` : '';
+          li.textContent = `#${user.id} ${user.email} | roles: ${user.roles.join(', ')}${pwd} | lvl ${user.level} | xp ${user.xp}`;
+          el.usersList.appendChild(li);
+        });
+
+        data.characters.forEach((character) => {
+          const li = document.createElement('li');
+          li.textContent = `#${character.id} ${character.name} | atk ${character.attack} | hp ${character.hp}/${character.baseHp} | lvlReq ${character.levelRequired}`;
+          el.charactersList.appendChild(li);
+        });
+
+        if (state.user) {
+          const me = data.users.find((user) => user.id === state.user.id);
+          if (me) {
+            state.user = { ...state.user, ...me };
+            renderUserStats(state.user);
+          }
+        }
+
+        el.overviewInfo.textContent = `Resumen cargado: ${data.users.length} usuarios, ${data.characters.length} personajes`;
+      }
+
+      function renderRanking(ranking) {
+        el.rankingList.innerHTML = '';
+
+        ranking.forEach((user) => {
+          const li = document.createElement('li');
+          li.textContent = `#${user.rank} ${user.email} | wins ${user.wins} | losses ${user.losses} | lvl ${user.level} | xp ${user.xp}`;
+          el.rankingList.appendChild(li);
+        });
+
+        setBoxMessage(el.rankingInfo, `Ranking cargado: Top ${ranking.length}`);
+      }
+
+      async function loadOverview() {
+        const json = await request('/demo/overview', {}, false);
+        const data = unwrap(json);
+        renderOverview(data);
+        log('Overview cargado', {
+          users: data.users.length,
+          characters: data.characters.length,
+        });
+      }
+
+      async function loadRanking() {
+        const json = await request('/users/ranking?limit=10');
+        const ranking = unwrap(json);
+        renderRanking(ranking);
+        log('Ranking cargado', { total: ranking.length });
+      }
+
+      function joinRoomIfPossible() {
+        if (!state.socket?.connected || !state.currentBattleId) return;
+        state.socket.emit('join-battle-room', { battleId: state.currentBattleId });
+      }
+
+      function connectWs() {
+        if (!state.token) return;
+        if (state.socket) {
+          state.socket.disconnect();
+          state.socket = null;
+        }
+        state.socket = io(API_BASE_URL, { auth: { token: state.token } });
+        state.socket.on('connect', () => {
+          el.wsInfo.textContent = `WS conectado (${state.socket.id})`;
+          log('WS conectado', { socketId: state.socket.id });
+          joinRoomIfPossible();
+        });
+        state.socket.on('disconnect', () => {
+          el.wsInfo.textContent = 'WS desconectado';
+          log('WS desconectado');
+        });
+        state.socket.on('connect_error', (err) => {
+          el.wsInfo.textContent = `WS error: ${err.message}`;
+          log('WS connect_error', { message: err.message });
+        });
+        state.socket.on('battle-updated', async (payload) => {
+          log('Evento battle-updated', payload);
+          if (state.currentBattleId) await refreshCurrentBattle('ws');
+        });
+      }
+
+      function setNewBattle(battleId, mode, waitingMessage) {
+        state.currentBattleId = Number(battleId);
+        state.currentBattleMode = mode;
+        state.lastBattleSnapshot = null;
+        state.lastBattleSignature = null;
+        clearTurns();
+        el.battleInfo.textContent = waitingMessage || `Partida ${battleId} | ${mode}`;
+      }
+
+      function syncUserStatsFromBattle(battle) {
+        if (!state.user) return;
+
+        let updatedUser = null;
+        if (battle.initiatorUser && battle.initiatorUser.id === state.user.id) {
+          updatedUser = battle.initiatorUser;
+        } else if (battle.opponentUser && battle.opponentUser.id === state.user.id) {
+          updatedUser = battle.opponentUser;
+        } else if (battle.winnerUser && battle.winnerUser.id === state.user.id) {
+          updatedUser = battle.winnerUser;
+        }
+
+        if (updatedUser) {
+          state.user = { ...state.user, ...updatedUser };
+          renderUserStats(state.user);
+        }
+      }
+
+      async function refreshCurrentBattle(source = 'manual') {
+        if (!state.currentBattleId) throw new Error('No hay partida activa');
+        const json = await request(`/battles/${state.currentBattleId}`);
+        const battle = unwrap(json);
+        el.battleInfo.textContent = `Partida ${battle.id} | ${battle.mode} | ${battle.status}`;
+        applyBattleSnapshot(battle, source);
+        syncUserStatsFromBattle(battle);
+      }
+
+      async function onAuthenticated(authData) {
+        state.token = authData.access_token;
+        state.user = authData.user;
+        el.authInfo.textContent = `Logueado: ${authData.user.email}`;
+        renderUserStats(authData.user);
+        setBoxMessage(el.authMessage, 'Login correcto');
+        log('Auth OK', authData.user);
+        connectWs();
+        await loadCharacters();
+        await loadOverview();
+        await loadRanking();
+      }
+
+      el.myCharacterSelect.addEventListener('change', updateCharacterInfo);
+
+      el.registerBtn.addEventListener('click', async () => {
+        try {
+          const json = await request(
+            '/auth/register',
+            {
+              method: 'POST',
+              body: { email: el.email.value.trim(), password: el.password.value },
+            },
+            false,
+          );
+          await onAuthenticated(unwrap(json));
+        } catch (error) {
+          setBoxMessage(el.authMessage, `Error registro: ${error.message}`, true);
+          log('Error registro', { message: error.message });
+        }
+      });
+
+      el.loginBtn.addEventListener('click', async () => {
+        try {
+          const json = await request(
+            '/auth/login',
+            {
+              method: 'POST',
+              body: { email: el.email.value.trim(), password: el.password.value },
+            },
+            false,
+          );
+          await onAuthenticated(unwrap(json));
+        } catch (error) {
+          setBoxMessage(el.authMessage, `Error login: ${error.message}`, true);
+          log('Error login', { message: error.message });
+        }
+      });
+
+      el.reloadCharactersBtn.addEventListener('click', async () => {
+        try {
+          await loadCharacters();
+          setBoxMessage(el.characterMessage, 'Personajes recargados');
+        } catch (error) {
+          setBoxMessage(el.characterMessage, `Error personajes: ${error.message}`, true);
+          log('Error personajes', { message: error.message });
+        }
+      });
+
+      el.seedDbBtn.addEventListener('click', async () => {
+        try {
+          const json = await request('/demo/seed', { method: 'POST' }, false);
+          const data = unwrap(json);
+          setBoxMessage(el.overviewInfo, 'Seed lanzado correctamente');
+          log('Seed ejecutado', data);
+          if (state.token) {
+            await loadCharacters();
+            await loadRanking();
+          } else {
+            setBoxMessage(
+              el.characterMessage,
+              'Seed OK. Haz login para cargar personajes en el selector.',
+            );
+          }
+          await loadOverview();
+        } catch (error) {
+          setBoxMessage(el.overviewInfo, `Error seed: ${error.message}`, true);
+          log('Error seed', { message: error.message });
+        }
+      });
+
+      el.clearDbBtn.addEventListener('click', async () => {
+        try {
+          const json = await request('/demo/clear', { method: 'POST' }, false);
+          const data = unwrap(json);
+          setBoxMessage(el.overviewInfo, 'Base de datos vaciada');
+          log('Base de datos vaciada', data);
+
+          state.characters = [];
+          state.token = null;
+          state.user = null;
+          state.currentBattleId = null;
+          state.currentBattleMode = null;
+          state.lastBattleSnapshot = null;
+          state.lastBattleSignature = null;
+
+          if (state.socket) {
+            state.socket.disconnect();
+            state.socket = null;
+          }
+
+          el.myCharacterSelect.innerHTML = '';
+          el.rankingList.innerHTML = '';
+          el.usersList.innerHTML = '';
+          el.charactersList.innerHTML = '';
+          clearTurns();
+
+          el.authInfo.textContent = 'No autenticado';
+          renderUserStats(null);
+          el.wsInfo.textContent = 'WS desconectado';
+          el.battleInfo.textContent = 'Sin partida activa';
+          el.battleHeader.textContent = 'Inicia o únete a una partida';
+          el.characterInfo.textContent = 'Personajes sin cargar';
+          el.leftName.textContent = '-';
+          el.leftUser.textContent = '-';
+          el.leftStats.textContent = 'ATK - | HP max -';
+          el.leftHpBar.style.width = '0%';
+          el.leftHpText.textContent = 'HP actual: -';
+          el.rightName.textContent = '-';
+          el.rightUser.textContent = '-';
+          el.rightStats.textContent = 'ATK - | HP max -';
+          el.rightHpBar.style.width = '0%';
+          el.rightHpText.textContent = 'HP actual: -';
+          el.rankingInfo.textContent = 'Haz login para cargar ranking';
+          setBoxMessage(
+            el.characterMessage,
+            'BD vaciada. Pulsa "Lanzar seed" y luego login para jugar.',
+          );
+        } catch (error) {
+          setBoxMessage(el.overviewInfo, `Error vaciar BD: ${error.message}`, true);
+          log('Error vaciar BD', { message: error.message });
+        }
+      });
+
+      el.loadOverviewBtn.addEventListener('click', async () => {
+        try {
+          await loadOverview();
+          setBoxMessage(el.overviewInfo, 'Resumen actualizado');
+        } catch (error) {
+          setBoxMessage(el.overviewInfo, `Error overview: ${error.message}`, true);
+          log('Error overview', { message: error.message });
+        }
+      });
+
+      el.loadRankingBtn.addEventListener('click', async () => {
+        try {
+          await loadRanking();
+        } catch (error) {
+          setBoxMessage(el.rankingInfo, `Error ranking: ${error.message}`, true);
+          log('Error ranking', { message: error.message });
+        }
+      });
+
+      el.createPvpBtn.addEventListener('click', async () => {
+        try {
+          const myCharacterId = getMyCharacterIdOrThrow();
+          const json = await request('/battles/start/pvp', {
+            method: 'POST',
+            body: { myCharacterId },
+          });
+          const data = unwrap(json);
+          setNewBattle(
+            data.battleId,
+            'PVP',
+            `Partida ${data.battleId} creada. Esperando oponente...`,
+          );
+          setBoxMessage(el.pvpMessage, `PVP creada con ID ${data.battleId}. Comparte ese ID.`);
+          joinRoomIfPossible();
+          await refreshCurrentBattle('init');
+        } catch (error) {
+          setBoxMessage(el.pvpMessage, `Error crear PVP: ${error.message}`, true);
+          log('Error crear PVP', { message: error.message });
+        }
+      });
+
+      el.joinPvpBtn.addEventListener('click', async () => {
+        try {
+          const battleId = Number(el.joinBattleIdInput.value);
+          if (!battleId) throw new Error('Introduce un ID de batalla válido');
+          const myCharacterId = getMyCharacterIdOrThrow();
+
+          await request(`/battles/${battleId}/join/pvp`, {
+            method: 'POST',
+            body: { myCharacterId },
+          });
+
+          setNewBattle(battleId, 'PVP', `Te has unido a la partida ${battleId}`);
+          setBoxMessage(el.pvpMessage, `Te has unido a la partida ${battleId}`);
+          joinRoomIfPossible();
+          await refreshCurrentBattle('join');
+        } catch (error) {
+          setBoxMessage(el.pvpMessage, `Error unirse PVP: ${error.message}`, true);
+          log('Error unirse PVP', { message: error.message });
+        }
+      });
+
+      el.startPveBtn.addEventListener('click', async () => {
+        try {
+          const myCharacterId = getMyCharacterIdOrThrow();
+          const machineCharacterId = pickMachineCharacterId(myCharacterId);
+          const json = await request('/battles/start/pve', {
+            method: 'POST',
+            body: { myCharacterId, machineCharacterId },
+          });
+          const data = unwrap(json);
+          setNewBattle(data.battleId, 'PVE', `Partida PVE ${data.battleId} iniciada`);
+          setBoxMessage(el.turnMessage, 'Partida PVE iniciada');
+          joinRoomIfPossible();
+          await refreshCurrentBattle('init');
+        } catch (error) {
+          setBoxMessage(el.turnMessage, `Error iniciar PVE: ${error.message}`, true);
+          log('Error iniciar PVE', { message: error.message });
+        }
+      });
+
+      el.playTurnBtn.addEventListener('click', async () => {
+        try {
+          if (!state.currentBattleId || !state.currentBattleMode) {
+            throw new Error('No hay partida activa');
+          }
+          const path =
+            state.currentBattleMode === 'PVE'
+              ? `/battles/${state.currentBattleId}/turn/pve`
+              : `/battles/${state.currentBattleId}/turn`;
+          const json = await request(path, { method: 'POST' });
+          const turnData = unwrap(json);
+
+          if (state.currentBattleMode === 'PVP' && turnData.turnAttack) {
+            const info = turnData.turnAttack;
+            const attacker =
+              info.attacker === 'INITIATOR' ? 'Iniciador' : 'Oponente';
+            const text =
+              `Ataque ${info.attackLevel} (${attacker}) | daño ${info.damage} ` +
+              `(base ${info.baseAttack} -> tirada ${info.rolledAttack})`;
+            setBoxMessage(el.turnMessage, text);
+            addTurn(text);
+          } else if (
+            state.currentBattleMode === 'PVE' &&
+            turnData.turnSummary
+          ) {
+            const p = turnData.turnSummary.playerAttack;
+            const m = turnData.turnSummary.machineAttack;
+            const textPlayer =
+              `Tu ataque ${p.attackLevel} | daño ${p.damage} (base ${p.baseAttack} -> ${p.rolledAttack})`;
+            const textMachine = m
+              ? ` | Maquina ${m.attackLevel} | daño ${m.damage} (base ${m.baseAttack} -> ${m.rolledAttack})`
+              : ' | Maquina sin turno (derrotada)';
+            const text = `${textPlayer}${textMachine}`;
+            setBoxMessage(el.turnMessage, text);
+            addTurn(text);
+          } else {
+            setBoxMessage(el.turnMessage, 'Turno aplicado');
+          }
+
+          await refreshCurrentBattle('turn');
+        } catch (error) {
+          if (typeof error.message === 'string' && error.message.includes('finalizado')) {
+            setBoxMessage(el.turnMessage, 'La batalla ha finalizado');
+            await refreshCurrentBattle('turn-finished');
+            return;
+          }
+
+          setBoxMessage(el.turnMessage, `Error turno: ${error.message}`, true);
+          log('Error turno', { message: error.message });
+        }
+      });
+
+      el.refreshBattleBtn.addEventListener('click', async () => {
+        try {
+          await refreshCurrentBattle('manual');
+          setBoxMessage(el.turnMessage, 'Estado actualizado');
+        } catch (error) {
+          setBoxMessage(el.turnMessage, `Error refresco: ${error.message}`, true);
+          log('Error refresco', { message: error.message });
+        }
+      });
+    </script>
+  </body>
+</html>
