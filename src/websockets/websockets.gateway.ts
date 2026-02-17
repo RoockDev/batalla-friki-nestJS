@@ -32,7 +32,7 @@ type SocketAuthUser = {
 @Injectable()
 /**
  * he estado y mirando y como siempre me pregunto que si a las cosas se le puede meter alguna
- * capa de seguridad o como seria en entorno corporativo he visto que esto se suele hacer y 
+ * capa de seguridad o como seria en entorno corporativo lo que estoy haciendo he visto que esto se suele hacer y 
  * lo he buscado y lo he añadido
  * aunque en el service ya tenga validaciones
  * de la batalla  porque por WebSocket también puede entrar gente
@@ -45,7 +45,7 @@ type SocketAuthUser = {
  *  batalla iniciador u oponente  y si no pertenece se rechaza
  * así  se evita  exponer información de partidas de otros y se mantiene la seguridad por canal
  * aquí solo se  controla autenticación/autorización del canal en tiempo real
- * todo esto apoyado de la ia
+ * todo esto apoyado de la ia , pero he decidido integrarlo
  */
 export class WebsocketsGateway {
   constructor(
