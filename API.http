@@ -1,240 +1,33 @@
 @baseUrl = http://localhost:3000
 
-### Listar personajes (sin token - debe dar 401)
-GET {{baseUrl}}/characters
-Accept: application/json
+### ==================================================
+### 0) CORRECCION RAPIDA (RESET + SEED + OVERVIEW)
+### ==================================================
 
-### Ruta no existente (prueba de errores con el contrato API)
-GET {{baseUrl}}/characters-not-found
-Accept: application/json
+### Vaciar base de datos
+POST {{baseUrl}}/demo/clear
 
-### Atacar personaje (caso correcto)
-POST {{baseUrl}}/characters/attack
-Content-Type: application/json
-Accept: application/json
+### Poblar datos demo (roles + admin + users + characters)
+POST {{baseUrl}}/demo/seed
 
-{
-  "attackerId": 1,
-  "targetId": 2
-}
+### Ver resumen para corregir (usuarios/roles/personajes)
+GET {{baseUrl}}/demo/overview
 
-### Atacar personaje (error: mismo atacante y objetivo)
-POST {{baseUrl}}/characters/attack
-Content-Type: application/json
-Accept: application/json
+### ==================================================
+### 1) AUTH
+### ==================================================
 
-{
-  "attackerId": 1,
-  "targetId": 1
-}
-
-### Atacar personaje (error: atacante no existe)
-POST {{baseUrl}}/characters/attack
-Content-Type: application/json
-Accept: application/json
-
-{
-  "attackerId": 999,
-  "targetId": 2
-}
-
-### Resetear HP de todos los personajes
-POST {{baseUrl}}/characters/reset
-Accept: application/json
-
-### Registro de usuario
-# @name register
-POST {{baseUrl}}/auth/register
-Content-Type: application/json
-Accept: application/json
-
-{
-  "email": "user1@batalla.com",
-  "password": "123456"
-}
-
-### Login de usuario
-# @name login
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-Accept: application/json
-
-{
-  "email": "user1@batalla.com",
-  "password": "123456"
-}
-
-### Listar personajes (con token - preparado para JwtAuthGuard)
-GET {{baseUrl}}/characters
-Accept: application/json
-Authorization: Bearer {{login.response.body.data.access_token}}
-
-### Atacar personaje (con token - preparado para JwtAuthGuard)
-POST {{baseUrl}}/characters/attack
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{login.response.body.data.access_token}}
-
-{
-  "attackerId": 1,
-  "targetId": 2
-}
-
-### Atacar personaje (error de validación DTO)
-POST {{baseUrl}}/characters/attack
-Content-Type: application/json
-Accept: application/json
-
-{
-  "attackerId": 1,
-  "targetId": 2,
-  "extraField": true
-}
-
-### Resetear HP (USER -> debe dar 403)
-POST {{baseUrl}}/characters/reset
-Accept: application/json
-Authorization: Bearer {{login.response.body.data.access_token}}
-
-
-### Login admin (necesita usuario admin en seeds)
+### Login admin
 # @name loginAdmin
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
-Accept: application/json
 
 {
   "email": "admin@batalla.com",
   "password": "123456"
 }
 
-### Resetear HP (ADMIN -> debe funcionar)
-POST {{baseUrl}}/characters/reset
-Accept: application/json
-Authorization: Bearer {{loginAdmin.response.body.data.access_token}}
-
-### Iniciar batalla PVE (USER o ADMIN)
-# @name startPve
-POST {{baseUrl}}/battles/start/pve
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{login.response.body.data.access_token}}
-
-{
-  "myCharacterId": 7,
-  "machineCharacterId": 8
-}
-
-### Iniciar batalla PVP (USER o ADMIN)
-# @name startPvp
-POST {{baseUrl}}/battles/start/pvp
-Content-Type: application/json
-Accept: application/json
-Authorization: Bearer {{login.response.body.data.access_token}}
-
-{
-  "opponentUserId": 2,
-  "myCharacterId": 7,
-  "opponentCharacterId": 11
-}
-
-### Obtener batalla PVE por id
-GET {{baseUrl}}/battles/{{startPve.response.body.data.battleId}}
-Accept: application/json
-Authorization: Bearer {{login.response.body.data.access_token}}
-
-
-### 1) Login USER 1
-# @name loginUser1
-POST http://localhost:3000/auth/login
-Content-Type: application/json
-
-{
-  "email": "user1@batalla.com",
-  "password": "123456"
-}
-
-###
-
-@authToken = {{loginUser1.response.body.data.access_token}}
-
-### 2) Iniciar batalla PVP (queda IN_PROGRESS)
-# @name startPvp
-POST http://localhost:3000/battles/start/pvp
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-{
-  "opponentUserId": 2,
-  "myCharacterId": 7,
-  "opponentCharacterId": 11
-}
-
-### PRUEBA BATALLA JUGADOR VS JUGADOR
-
-@battleId = {{startPvp.response.body.data.battleId}}
-
-### 3) Ejecutar 1 turno
-POST http://localhost:3000/battles/{{battleId}}/turn
-Authorization: Bearer {{authToken}}
-
-### 4) Ejecutar otro turno
-POST http://localhost:3000/battles/{{battleId}}/turn
-Authorization: Bearer {{authToken}}
-
-### 5) Ver estado de batalla
-GET http://localhost:3000/battles/{{battleId}}
-Authorization: Bearer {{authToken}}
-
-### PRUEBA BATALLA VS MAQUINA
-
-### LOGIN USER 1
-# @name loginUser1
-POST http://localhost:3000/auth/login
-Content-Type: application/json
-
-{
-  "email": "user1@batalla.com",
-  "password": "123456"
-}
-
-###
-
-@authToken = {{loginUser1.response.body.data.access_token}}
-
-### INICIAR PVE (IN_PROGRESS)
-# @name startPve
-POST http://localhost:3000/battles/start/pve
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-{
-  "myCharacterId": 7,
-  "machineCharacterId": 8
-}
-
-###
-
-@pveBattleId = {{startPve.response.body.data.battleId}}
-
-### TURNO PVE (jugador + maquina)
-POST http://localhost:3000/battles/{{pveBattleId}}/turn/pve
-Authorization: Bearer {{authToken}}
-
-### TURNO PVE 2
-POST http://localhost:3000/battles/{{pveBattleId}}/turn/pve
-Authorization: Bearer {{authToken}}
-
-### VER ESTADO BATTLE
-GET http://localhost:3000/battles/{{pveBattleId}}
-Authorization: Bearer {{authToken}}
-
-
-@baseUrl = http://localhost:3000
-
-### =========================
-### LOGIN USER 1
-### =========================
+### Login user1
 # @name loginUser1
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
@@ -244,91 +37,155 @@ Content-Type: application/json
   "password": "123456"
 }
 
-###
-
-@authToken = {{loginUser1.response.body.data.access_token}}
-
-### =========================
-### PVP - START
-### =========================
-# Ajusta IDs si en tu BD son otros
-# @name startPvp
-POST {{baseUrl}}/battles/start/pvp
-Authorization: Bearer {{authToken}}
+### Login user2
+# @name loginUser2
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "opponentUserId": 2,
-  "myCharacterId": 7,
-  "opponentCharacterId": 11
+  "email": "user2@batalla.com",
+  "password": "123456"
 }
 
 ###
+@tokenAdmin = {{loginAdmin.response.body.data.access_token}}
+@tokenUser1 = {{loginUser1.response.body.data.access_token}}
+@tokenUser2 = {{loginUser2.response.body.data.access_token}}
 
-@pvpBattleId = {{startPvp.response.body.data.battleId}}
+### Registro user nuevo (opcional)
+# @name registerNewUser
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
 
-### PVP - TURN 1
-POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
-Authorization: Bearer {{authToken}}
+{
+  "email": "nuevo_user_test@batalla.com",
+  "password": "123456"
+}
 
-### PVP - TURN 2
-POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
-Authorization: Bearer {{authToken}}
+### ==================================================
+### 2) CHARACTERS + RANKING
+### ==================================================
 
-### PVP - TURN 3
-POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
-Authorization: Bearer {{authToken}}
+### Listar personajes (requiere token)
+GET {{baseUrl}}/characters
+Authorization: Bearer {{tokenUser1}}
 
-### PVP - TURN 4
-POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
-Authorization: Bearer {{authToken}}
+### Ranking top 10 (requiere token)
+GET {{baseUrl}}/users/ranking?limit=10
+Authorization: Bearer {{tokenUser1}}
 
-### PVP - TURN 5
-POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
-Authorization: Bearer {{authToken}}
+### ==================================================
+### 3) BATTLE PVE (USER vs MAQUINA)
+### ==================================================
+### IMPORTANTE:
+### Si cambian los IDs, mira /demo/overview o /characters y ajusta:
+### user1CharId (debe cumplir levelRequired de user1)
+### machineCharId (distinto a user1CharId)
 
-### PVP - ESTADO FINAL
-GET {{baseUrl}}/battles/{{pvpBattleId}}
-Authorization: Bearer {{authToken}}
+@user1CharId = 7
+@machineCharId = 8
 
-### =========================
-### PVE - START
-### =========================
-# Ajusta IDs si en tu BD son otros
+### Crear batalla PVE
 # @name startPve
 POST {{baseUrl}}/battles/start/pve
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{tokenUser1}}
 Content-Type: application/json
 
 {
-  "myCharacterId": 7,
-  "machineCharacterId": 8
+  "myCharacterId": {{user1CharId}},
+  "machineCharacterId": {{machineCharId}}
 }
 
 ###
-
 @pveBattleId = {{startPve.response.body.data.battleId}}
 
-### PVE - TURN 1
-POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
-Authorization: Bearer {{authToken}}
-
-### PVE - TURN 2
-POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
-Authorization: Bearer {{authToken}}
-
-### PVE - TURN 3
-POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
-Authorization: Bearer {{authToken}}
-
-### PVE - TURN 4
-POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
-Authorization: Bearer {{authToken}}
-
-### PVE - TURN 5
-POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
-Authorization: Bearer {{authToken}}
-
-### PVE - ESTADO FINAL
+### Ver estado PVE
 GET {{baseUrl}}/battles/{{pveBattleId}}
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{tokenUser1}}
+
+### Turno PVE 1
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{tokenUser1}}
+
+### Turno PVE 2
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{tokenUser1}}
+
+### Turno PVE 3
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{tokenUser1}}
+
+### Estado PVE final/actual
+GET {{baseUrl}}/battles/{{pveBattleId}}
+Authorization: Bearer {{tokenUser1}}
+
+### ==================================================
+### 4) BATTLE PVP (WAITING + JOIN + TURNOS)
+### ==================================================
+### IMPORTANTE:
+### pvpCharUser1 y pvpCharUser2 deben ser distintos
+### y cumplir nivel requerido de cada usuario.
+
+@pvpCharUser1 = 7
+@pvpCharUser2 = 9
+
+### USER1 crea batalla PVP (queda WAITING)
+# @name createPvpWaiting
+POST {{baseUrl}}/battles/start/pvp
+Authorization: Bearer {{tokenUser1}}
+Content-Type: application/json
+
+{
+  "myCharacterId": {{pvpCharUser1}}
+}
+
+###
+@pvpBattleId = {{createPvpWaiting.response.body.data.battleId}}
+
+### USER2 se une a batalla PVP
+POST {{baseUrl}}/battles/{{pvpBattleId}}/join/pvp
+Authorization: Bearer {{tokenUser2}}
+Content-Type: application/json
+
+{
+  "myCharacterId": {{pvpCharUser2}}
+}
+
+### Ver estado PVP (user1)
+GET {{baseUrl}}/battles/{{pvpBattleId}}
+Authorization: Bearer {{tokenUser1}}
+
+### Turno PVP 1 (normalmente inicia USER1)
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{tokenUser1}}
+
+### Turno PVP 2 (normalmente USER2)
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{tokenUser2}}
+
+### Turno PVP 3
+POST {{baseUrl}}/battles/{{pvpBattleId}}/turn
+Authorization: Bearer {{tokenUser1}}
+
+### Estado PVP final/actual
+GET {{baseUrl}}/battles/{{pvpBattleId}}
+Authorization: Bearer {{tokenUser1}}
+
+### ==================================================
+### 5) AUTHZ (PRUEBAS DE SEGURIDAD)
+### ==================================================
+
+### USER2 intenta jugar turno PVE de USER1 -> debe dar 403
+POST {{baseUrl}}/battles/{{pveBattleId}}/turn/pve
+Authorization: Bearer {{tokenUser2}}
+
+### USER2 intenta ver detalle de PVE de USER1 -> debe dar 403
+GET {{baseUrl}}/battles/{{pveBattleId}}
+Authorization: Bearer {{tokenUser2}}
+
+### ==================================================
+### 6) NOTA WS
+### ==================================================
+### Las operaciones de batalla se ejecutan por HTTP.
+### WebSocket se usa para emitir eventos en tiempo real (battle-updated)
+### a los clientes conectados a la room de batalla.
