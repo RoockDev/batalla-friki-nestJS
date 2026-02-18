@@ -16,7 +16,6 @@ API de batallas PVE/PVP con autenticación JWT, roles y cliente web simple para 
 cp .env.example .env
 ```
 
-2. Revisa los valores (puedes dejar los de clase por defecto).
 
 ## Arranque rápido (para corregir)
 
@@ -62,7 +61,7 @@ python3 -m http.server 5500 -d clients
 
 ## Recurso de corrección (profesor)
 
-Se creó el módulo `profesor-correcion` para facilitar la revisión.
+he creado el módulo `profesor-correcion` para ayudar a la correción y que se pueda cacharrear en el que lanza el seed directamente y tambien se puede vaciar la bbdd etc
 
 Rutas:
 
@@ -109,4 +108,10 @@ yarn seed
 ## Notas
 
 - Al vaciar datos con `deleteMany`, los IDs autoincrementales no se reinician (comportamiento normal de PostgreSQL).
-- El cliente de `clients/index.html` es de apoyo para evaluación funcional; no es frontend productivo.
+
+- En PVP, cada jugador elige su propio personaje pero no puede ser el mismo los dos
+- En PVE, el personaje de la maquina se elige aleatoriamente entre los disponibles
+- El dano del ataque tiene variacion aleatoria por turno (BAJO/NORMAL/ALTO/CRITICO) el algoritmo está en el service lo que no se puede es fallar ataque
+
+## Otras cosas
+- Fernando como te comenté te he ido poniendo comentarios en algunos archivos en los que haya podido hacer alguna cosa distinta o añadido alguna cosa por si te choca o lo que sea ya que cosas como alguna cosa de prisma o por ejemplo la capa de seguridad de la autenticación en websockets eso he consultado la ia pero tambien he buscado otras fuentes como videos de youtube y documentación en el caso de prisma que es lo que más problemas quizás que me haya dado a la hora de manejar todos los datos que he manejado de las batalla, como las transacciones y más cosas pues la verdad que la documentación me ha ayudado bastante aunque seguramente tendré algunas cosas mal o mejorables.

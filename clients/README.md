@@ -35,7 +35,4 @@ python3 -m http.server 5500 -d clients
 
 En `Log` se ven respuestas REST y eventos WebSocket (`battle-updated`).
 
-Notas:
-- En PVP, cada jugador elige su propio personaje.
-- En PVE, el personaje de la maquina se elige aleatoriamente entre los disponibles.
-- El dano del ataque tiene variacion aleatoria por turno (BAJO/NORMAL/ALTO/CRITICO).
+
